@@ -1,13 +1,14 @@
-name: "Build V2"
+name: "Build"
 
 on:
   push:
-    branches: ["v2"]
+    branches: ["main"]
   pull_request:
     types:
       - "opened"
       - "reopened"
       - "synchronize"
+  workflow_dispatch:
 
 defaults:
   run:
@@ -36,7 +37,20 @@ jobs:
 
       - name: "Setup env"
         run: |
-          echo "timestamp=$(date '+%F-%H-%M-%S')" | tee -a "$GITHUB_ENV"
+          ts="$(TZ=UTC date '+%Y%m%d-%H%M%S')"
+
+          {
+            echo "timestamp=$ts"
+
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              echo "snapshot_path=pull-request/${ts}-run-${{ github.run_id }}-pr-${{ github.event.number }}"
+            else
+              echo "snapshot_path=$BRANCH_NAME/${ts}-run-${{ github.run_id }}"
+            fi
+          } | tee -a "$GITHUB_ENV"
+        env:
+          # See: https://docs.github.com/en/actions/reference/security/secure-use#good-practices-for-mitigating-script-injection-attacks
+          BRANCH_NAME: "${{ github.head_ref || github.ref_name }}"
 
       - name: "Setup nFPM"
         env:
@@ -57,11 +71,12 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_S3_SNAPSHOTS_SECRET_ACCESS_KEY }}
           AWS_S3_BUCKET: "${{ secrets.AWS_S3_SNAPSHOTS_BUCKET }}"
           TIMESTAMP: "${{ env.timestamp }}"
+          SNAPSHOT_PATH: "${{ env.snapshot_path }}"
         working-directory: "target"
         run: |
           printf -- "## Artifacts\n\n" >> "$GITHUB_STEP_SUMMARY"
 
           for file in $(find . -maxdepth 1 -name 'graylog-collector*' -type f | sort -V); do
-            aws s3 cp --no-progress "$file" "s3://${AWS_S3_BUCKET}/sidecar/v2/${TIMESTAMP}/"
-            printf -- "- https://downloads.graylog.org/snapshots/sidecar/v2/%s/%s\n" "$TIMESTAMP" "$(basename "$file")" >> "$GITHUB_STEP_SUMMARY"
+            aws s3 cp --no-progress "$file" "s3://${AWS_S3_BUCKET}/collector/${SNAPSHOT_PATH}/"
+            printf -- "- https://downloads.graylog.org/snapshots/collector/%s/%s\n" "$SNAPSHOT_PATH" "$(basename "$file")" >> "$GITHUB_STEP_SUMMARY"
           done
