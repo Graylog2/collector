@@ -31,19 +31,19 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/supervisor/connection"
+	"github.com/Graylog2/collector/superv/supervisor/connection"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"github.com/open-telemetry/opamp-go/server/types"
 	"go.uber.org/zap"
 
-	"github.com/Graylog2/collector-sidecar/superv/auth"
-	"github.com/Graylog2/collector-sidecar/superv/config"
-	"github.com/Graylog2/collector-sidecar/superv/configmanager"
-	"github.com/Graylog2/collector-sidecar/superv/configmerge"
-	"github.com/Graylog2/collector-sidecar/superv/healthmonitor"
-	"github.com/Graylog2/collector-sidecar/superv/keen"
-	"github.com/Graylog2/collector-sidecar/superv/opamp"
-	"github.com/Graylog2/collector-sidecar/superv/ownlogs"
+	"github.com/Graylog2/collector/superv/auth"
+	"github.com/Graylog2/collector/superv/config"
+	"github.com/Graylog2/collector/superv/configmanager"
+	"github.com/Graylog2/collector/superv/configmerge"
+	"github.com/Graylog2/collector/superv/healthmonitor"
+	"github.com/Graylog2/collector/superv/keen"
+	"github.com/Graylog2/collector/superv/opamp"
+	"github.com/Graylog2/collector/superv/ownlogs"
 )
 
 const (
@@ -197,6 +197,7 @@ func New(logger *zap.Logger, cfg config.Config, instanceUID string) (*Supervisor
 		LocalEndpoint:  cfg.LocalServer.Endpoint,
 		InstanceUID:    instanceUID,
 		HealthCheck:    healthCheck,
+		AgentLogLevel:  cfg.Agent.Logging.Level,
 	})
 
 	// Restore the last applied config hash so ApplyRemoteConfig can skip
@@ -323,11 +324,17 @@ func (s *Supervisor) Start(parentCtx context.Context) error {
 	}
 
 	// Create commander for agent process management
-	cmd, err := keen.New(s.logger, s.persistenceDir, keen.Config{
+	cmd, err := keen.New(s.logger, keen.Config{
 		Executable:      s.agentCfg.Executable,
 		Args:            expandedArgs,
 		Env:             s.buildCollectorEnv(),
 		PassthroughLogs: s.agentCfg.PassthroughLogs,
+		Logging: keen.LoggingConfig{
+			File:       s.agentCfg.Logging.File,
+			MaxSize:    s.agentCfg.Logging.FileRotation.MaxSize,
+			MaxBackups: s.agentCfg.Logging.FileRotation.MaxBackups,
+			MaxAge:     s.agentCfg.Logging.FileRotation.MaxAge,
+		},
 	}, keen.NewBackoff(keen.BackoffConfig{
 		InitialInterval:     s.agentCfg.Restart.InitialInterval,
 		MaxInterval:         s.agentCfg.Restart.MaxInterval,
@@ -337,7 +344,7 @@ func (s *Supervisor) Start(parentCtx context.Context) error {
 		StableAfter:         s.agentCfg.Restart.StableAfter,
 	}))
 	if err != nil {
-		return err
+		return fmt.Errorf("creating commander: %w", err)
 	}
 	s.commander = cmd
 
@@ -361,13 +368,13 @@ func (s *Supervisor) Start(parentCtx context.Context) error {
 		ListenEndpoint: s.localServerCfg.Endpoint,
 	}, serverCallbacks)
 	if err != nil {
-		return err
+		return fmt.Errorf("creating local OpAMP server: %w", err)
 	}
 	s.opampServer = opampServer
 
 	// Start local OpAMP server
 	if err := s.opampServer.Start(s.ctx); err != nil {
-		return err
+		return fmt.Errorf("starting local OpAMP server: %w", err)
 	}
 
 	// Resolve the runtime-bound local OpAMP endpoint and update the config
@@ -513,13 +520,16 @@ func (s *Supervisor) Stop(ctx context.Context) error {
 	}
 	s.healthWg.Wait()
 
+	// Disconnect the local OpAMP clients before stopping the collector process to avoid error logs.
+	if server != nil {
+		server.DisconnectAll()
+	}
+
 	if s.commander != nil {
 		if err := s.commander.Stop(ctx); err != nil {
 			s.logger.Error("Error stopping agent", zap.Error(err))
 		}
 	}
-
-	server.DisconnectAll()
 
 	if client != nil {
 		if err := client.Stop(ctx); err != nil {

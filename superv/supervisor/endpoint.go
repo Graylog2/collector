@@ -22,7 +22,7 @@ import (
 	"net"
 	"net/netip"
 
-	"github.com/Graylog2/collector-sidecar/superv/config"
+	"github.com/Graylog2/collector/superv/config"
 )
 
 // resolveLocalEndpoint converts a net.Addr.String() result (e.g. "0.0.0.0:54321")

@@ -28,8 +28,8 @@ import (
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"go.uber.org/zap"
 
-	"github.com/Graylog2/collector-sidecar/superv/configmerge"
-	"github.com/Graylog2/collector-sidecar/superv/persistence"
+	"github.com/Graylog2/collector/superv/configmerge"
+	"github.com/Graylog2/collector/superv/persistence"
 )
 
 // Config holds the configuration for the config manager.
@@ -40,6 +40,7 @@ type Config struct {
 	LocalEndpoint  string                        // Local OpAMP server endpoint for injection
 	InstanceUID    string                        // Instance UID for injection
 	HealthCheck    configmerge.HealthCheckConfig // Health check extension injection settings
+	AgentLogLevel  string                        // Log level the agent should log at
 }
 
 // ApplyResult contains the result of applying a remote config.
@@ -408,6 +409,12 @@ func (m *Manager) injectExtensions(config []byte) ([]byte, error) {
 	}
 	m.logger.Debug("Injected telemetry metrics deactivation")
 
+	mergedConfig, err = configmerge.InjectTelemetryLogs(mergedConfig, m.cfg.AgentLogLevel)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inject telemetry logs: %w", err)
+	}
+	m.logger.Debug("Injected telemetry logs settings")
+
 	return mergedConfig, nil
 }
 
@@ -457,7 +464,10 @@ func (m *Manager) SaveRemoteConfigStatus(status protobufs.RemoteConfigStatuses, 
 	}
 
 	path := filepath.Join(m.cfg.ConfigDir, remoteConfigStatusFile)
-	return persistence.WriteYAMLFile(".", path, data)
+	if err := persistence.WriteYAMLFile(".", path, data); err != nil {
+		return fmt.Errorf("writing remote config status: %w", err)
+	}
+	return nil
 }
 
 // LoadRemoteConfigStatus loads the persisted remote config status from disk.

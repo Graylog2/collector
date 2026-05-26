@@ -16,8 +16,8 @@
 package services
 
 import (
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/backends"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/daemon"
+	"github.com/Graylog2/collector/extension/sidecar/backends"
+	"github.com/Graylog2/collector/extension/sidecar/daemon"
 	"github.com/kardianos/service"
 )
 

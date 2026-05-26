@@ -20,13 +20,15 @@ package testprotos
 import (
 	"testing"
 
-	"github.com/Graylog2/collector-sidecar/superv/internal/testpki"
+	"github.com/Graylog2/collector/superv/internal/testpki"
 	"github.com/open-telemetry/opamp-go/protobufs"
 )
 
 func CreateTLSCertificate(t *testing.T) *protobufs.TLSCertificate {
+	t.Helper()
+
 	ca := testpki.GenerateTestCA(t)
-	cert := testpki.GenerateTestCert(t, ca.CertPEM, ca.KeyPEM)
+	cert := testpki.GenerateTestCert(t, testpki.WithIssuer(ca))
 
 	return &protobufs.TLSCertificate{
 		Cert:       cert.CertPEM,

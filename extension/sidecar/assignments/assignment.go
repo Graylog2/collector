@@ -16,7 +16,7 @@
 package assignments
 
 import (
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/helpers"
+	"github.com/Graylog2/collector/extension/sidecar/helpers"
 	"reflect"
 )
 

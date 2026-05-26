@@ -20,7 +20,7 @@ package version_test
 import (
 	"testing"
 
-	"github.com/Graylog2/collector-sidecar/superv/version"
+	"github.com/Graylog2/collector/superv/version"
 	"github.com/stretchr/testify/assert"
 )
 

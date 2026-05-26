@@ -18,7 +18,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/knadh/koanf/parsers/yaml"
@@ -31,7 +34,27 @@ import (
 const envPrefix = "GLC_"
 
 func DefaultConfigPaths() []string {
+	if runtime.GOOS == "windows" {
+		return []string{filepath.Join(WindowsDataPathPrefix, "config", "supervisor.yaml")}
+	}
 	return []string{"/etc/graylog/collector/supervisor.yaml", "./supervisor.yaml"}
+}
+
+func DefaultSidecarConfigPaths(customPath string) []string {
+	if runtime.GOOS == "windows" {
+		// Default Sidecar path on Windows.
+		paths := []string{filepath.Join(`C:\`, "Program Files", "graylog", "sidecar", "sidecar.yml")}
+		if customPath != "" {
+			return append(paths, customPath)
+		}
+		return paths
+	}
+	// Default Sidecar path on Unix.
+	paths := []string{"/etc/graylog/sidecar/sidecar.yml"}
+	if customPath != "" {
+		return append(paths, customPath)
+	}
+	return paths
 }
 
 // Load loads configuration from a YAML file, merging with defaults.
@@ -43,7 +66,7 @@ func Load(path string) (Config, error) {
 	// Load defaults first using structs provider
 	defaults := DefaultConfig()
 	if err := k.Load(structs.Provider(defaults, "koanf"), nil); err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("loading defaults: %w", err)
 	}
 
 	if path != "" {
@@ -51,7 +74,7 @@ func Load(path string) (Config, error) {
 		if err := k.Load(file.Provider(path), yaml.Parser()); err != nil {
 			// It's okay to run the supervisor without config file
 			if !os.IsNotExist(err) {
-				return Config{}, err
+				return Config{}, fmt.Errorf("loading config file: %w", err)
 			}
 		}
 	}
@@ -66,12 +89,12 @@ func Load(path string) (Config, error) {
 				"__", "::"), v
 		},
 	}), nil); err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("loading environment variables: %w", err)
 	}
 
 	var cfg Config
 	if err := k.Unmarshal("", &cfg); err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("unmarshaling config: %w", err)
 	}
 
 	return cfg, nil

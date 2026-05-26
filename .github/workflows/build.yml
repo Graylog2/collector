@@ -1,0 +1,93 @@
+name: "Build"
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    types:
+      - "opened"
+      - "reopened"
+      - "synchronize"
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: "bash"
+
+jobs:
+  build:
+    runs-on: "ubuntu-latest"
+
+    steps:
+      - name: "Checkout repository"
+        uses: "actions/checkout@v6"
+        with:
+          persist-credentials: false
+
+      - name: "Setup Go environment"
+        uses: "actions/setup-go@v6"
+        with:
+          go-version: "1.26"
+
+      - name: "Build binaries"
+        run: "go tool task all"
+
+      - name: "Run tests"
+        run: "go tool task test"
+
+      - name: "Setup env"
+        run: |
+          ts="$(TZ=UTC date '+%Y%m%d-%H%M%S')"
+
+          {
+            echo "timestamp=$ts"
+
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              echo "snapshot_path=pull-request/${ts}-run-${{ github.run_id }}-pr-${{ github.event.number }}"
+            else
+              echo "snapshot_path=$BRANCH_NAME/${ts}-run-${{ github.run_id }}"
+            fi
+          } | tee -a "$GITHUB_ENV"
+        env:
+          # See: https://docs.github.com/en/actions/reference/security/secure-use#good-practices-for-mitigating-script-injection-attacks
+          BRANCH_NAME: "${{ github.head_ref || github.ref_name }}"
+
+      - name: "Setup nFPM"
+        env:
+          GH_TOKEN: "${{ github.token }}"
+        run: |
+          gh release download --repo goreleaser/nfpm -p "*amd64.deb" -O nfpm.deb
+          sudo apt-get install -y ./nfpm.deb
+
+      - name: "Build packages"
+        env:
+          TIMESTAMP: "${{ env.timestamp }}"
+        run: "nfpm package -f dist/linux/nfpm.yaml -p deb -t target/"
+
+      - name: "Upload build artifacts to S3"
+        # Dependabot doesn't have access to the S3 secrets.
+        if: "github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'"
+        env:
+          AWS_DEFAULT_REGION: "eu-west-1"
+          AWS_ACCESS_KEY_ID: "${{ secrets.AWS_S3_SNAPSHOTS_ACCESS_KEY_ID }}"
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_S3_SNAPSHOTS_SECRET_ACCESS_KEY }}
+          AWS_S3_BUCKET: "${{ secrets.AWS_S3_SNAPSHOTS_BUCKET }}"
+          TIMESTAMP: "${{ env.timestamp }}"
+          SNAPSHOT_PATH: "${{ env.snapshot_path }}"
+        working-directory: "target"
+        run: |
+          printf -- "## Artifacts\n\n" >> "$GITHUB_STEP_SUMMARY"
+
+          for file in $(find . -maxdepth 1 -name 'graylog-collector*' -type f | sort -V); do
+            aws s3 cp --no-progress "$file" "s3://${AWS_S3_BUCKET}/collector/${SNAPSHOT_PATH}/"
+            printf -- "- https://downloads.graylog.org/snapshots/collector/%s/%s\n" "$SNAPSHOT_PATH" "$(basename "$file")" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: "Upload artifacts"
+        # Dependabot can't upload to S3, let's archive the artifacts for testing.
+        if: "github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'"
+        uses: "actions/upload-artifact@v7"
+        with:
+          name: "collector-build-artifacts"
+          path: "graylog-collector*"
+          retention-days: 7

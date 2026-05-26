@@ -57,7 +57,7 @@ extensions:
       stability:
         extension: Alpha
     - name: sidecar
-      module: github.com/Graylog2/collector-sidecar/extension/sidecar v1.5.0
+      module: github.com/Graylog2/collector/extension/sidecar v1.5.0
       stability:
         extension: Stable
 providers:
@@ -345,8 +345,8 @@ func TestSplitModule(t *testing.T) {
 			wantVersion: "v0.144.0",
 		},
 		{
-			module:      "github.com/Graylog2/collector-sidecar/extension/sidecar v1.5.0",
-			wantPkg:     "github.com/Graylog2/collector-sidecar/extension/sidecar",
+			module:      "github.com/Graylog2/collector/extension/sidecar v1.5.0",
+			wantPkg:     "github.com/Graylog2/collector/extension/sidecar",
 			wantVersion: "v1.5.0",
 		},
 		{

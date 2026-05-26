@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/Graylog2/collector-sidecar/superv/config"
+	"github.com/Graylog2/collector/superv/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"

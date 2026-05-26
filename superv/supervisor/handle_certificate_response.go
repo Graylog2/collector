@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/ownlogs"
-	"github.com/Graylog2/collector-sidecar/superv/version"
+	"github.com/Graylog2/collector/superv/ownlogs"
+	"github.com/Graylog2/collector/superv/version"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"go.uber.org/zap"
 )
@@ -141,5 +141,8 @@ func (s *Supervisor) reloadOwnLogsCert(ctx context.Context) error {
 	}
 
 	res := ownlogs.BuildResource(ServiceName, version.Version(), s.instanceUID)
-	return s.ownLogsManager.Apply(ctx, *s.currentOwnLogs, res)
+	if err := s.ownLogsManager.Apply(ctx, *s.currentOwnLogs, res); err != nil {
+		return fmt.Errorf("applying own logs settings: %w", err)
+	}
+	return nil
 }

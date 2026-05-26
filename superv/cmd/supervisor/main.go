@@ -29,11 +29,11 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/Graylog2/collector-sidecar/superv/config"
-	"github.com/Graylog2/collector-sidecar/superv/ownlogs"
-	"github.com/Graylog2/collector-sidecar/superv/persistence"
-	"github.com/Graylog2/collector-sidecar/superv/supervisor"
-	"github.com/Graylog2/collector-sidecar/superv/version"
+	"github.com/Graylog2/collector/superv/config"
+	"github.com/Graylog2/collector/superv/ownlogs"
+	"github.com/Graylog2/collector/superv/persistence"
+	"github.com/Graylog2/collector/superv/supervisor"
+	"github.com/Graylog2/collector/superv/version"
 )
 
 func main() {
@@ -57,7 +57,7 @@ func main() {
 	flag.Parse()
 
 	if showVersion {
-		fmt.Println(version.Version())
+		fmt.Println(version.Version()) //nolint:forbidigo
 		os.Exit(0)
 	}
 
@@ -200,5 +200,9 @@ func initLogger(level, format string) (*zap.Logger, error) {
 	}
 	cfg.Level = zap.NewAtomicLevelAt(zapLevel)
 
-	return cfg.Build()
+	logger, err := cfg.Build()
+	if err != nil {
+		return nil, fmt.Errorf("building logger: %w", err)
+	}
+	return logger, nil
 }

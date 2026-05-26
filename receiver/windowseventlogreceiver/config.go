@@ -9,7 +9,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/adapter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator"
 
-	"github.com/Graylog2/collector-sidecar/receiver/windowseventlogreceiver/internal/windows"
+	"github.com/Graylog2/collector/receiver/windowseventlogreceiver/internal/windows"
 )
 
 // WindowsLogConfig defines configuration for the windowseventlog receiver.

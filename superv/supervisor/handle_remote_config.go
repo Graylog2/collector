@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/healthmonitor"
+	"github.com/Graylog2/collector/superv/healthmonitor"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"go.uber.org/zap"
 )
@@ -113,7 +113,7 @@ func (s *Supervisor) awaitCollectorHealthy(ctx context.Context, timeout time.Dur
 		select {
 		case <-timer.C:
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("startup grace period: %w", ctx.Err())
 		}
 	}
 
