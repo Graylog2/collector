@@ -6,8 +6,6 @@
 
 ### Environment
 
-* Sidecar Version:
+* Collector Version:
 * Graylog Version:
 * Operating System:
-* Elasticsearch Version:
-* MongoDB Version:

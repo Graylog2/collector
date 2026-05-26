@@ -9,4 +9,4 @@ size, disability, ethnicity, gender identity and expression, level of experience
 nationality, personal appearance, race, religion, or sexual identity and
 orientation.
 
-Please read and understand the [Code of Conduct](https://github.com/Graylog2/collector-sidecar/blob/master/CODE_OF_CONDUCT.md).
+Please read and understand the [Code of Conduct](https://github.com/Graylog2/collector/blob/main/CODE_OF_CONDUCT.md).
