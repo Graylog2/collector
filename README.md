@@ -1,6 +1,7 @@
 # Graylog Collector
 
-[![Go Report Card](https://goreportcard.com/badge/Github.com/graylog2/collector)](https://goreportcard.com/report/github.com/Graylog2/collector)
+[![License](https://img.shields.io/badge/license-SSPL-green)](https://www.mongodb.com/licensing/server-side-public-license)
+[![Build](https://github.com/Graylog2/collector/actions/workflows/build.yml/badge.svg)](https://github.com/Graylog2/collector/actions/workflows/build.yml)
 
 Graylog Collector is a log shipper that ships logs from your hosts to a Graylog server.
 It runs and supervises an embedded [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/)
