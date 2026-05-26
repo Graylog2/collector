@@ -23,6 +23,15 @@ updates:
       # Group security updates for golang dependencies
       # into a single pull request
       golang-org:
-        applies-to: "security-updates"
+        applies-to: "version-updates"
         patterns:
           - "golang.org*"
+      open-telemetry:
+        applies-to: "version-updates"
+        patterns:
+          - "go.opentelemetry.io/*"
+          - "github.com/open-telemetry/*"
+      koanf:
+        applies-to: "version-updates"
+        patterns:
+          - "github.com/knadh/koanf*"
