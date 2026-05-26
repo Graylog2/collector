@@ -1,0 +1,28 @@
+version: 2
+
+updates:
+  - package-ecosystem: "gomod"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "Europe/Berlin"
+    cooldown:
+      default-days: 7
+    open-pull-request-limit: 50
+    labels:
+      - "dependencies"
+      - "go"
+    directories:
+      # TODO: Enable when extension/sidecar is ready
+      #- "**/*"
+      - "/"
+      - "/builder"
+      - "/receiver/windowseventlogreceiver"
+      - "/superv"
+    groups:
+      # Group security updates for golang dependencies
+      # into a single pull request
+      golang-org:
+        applies-to: "security-updates"
+        patterns:
+          - "golang.org*"
