@@ -89,5 +89,5 @@ jobs:
         uses: "actions/upload-artifact@v7"
         with:
           name: "collector-build-artifacts"
-          path: "graylog-collector*"
+          path: "target/graylog-collector*"
           retention-days: 7
