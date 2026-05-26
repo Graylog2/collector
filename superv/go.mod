@@ -3,7 +3,7 @@ module github.com/Graylog2/collector/superv
 go 1.26.0
 
 require (
-	github.com/DeRuina/timberjack v1.4.0
+	github.com/DeRuina/timberjack v1.4.2
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/goccy/go-yaml v1.19.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
