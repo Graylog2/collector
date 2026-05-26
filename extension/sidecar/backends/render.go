@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/cfg"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/common"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/helpers"
+	"github.com/Graylog2/collector/extension/sidecar/cfg"
+	"github.com/Graylog2/collector/extension/sidecar/common"
+	"github.com/Graylog2/collector/extension/sidecar/helpers"
 )
 
 func (b *Backend) render() []byte {

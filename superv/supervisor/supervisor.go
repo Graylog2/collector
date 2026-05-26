@@ -31,19 +31,19 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/supervisor/connection"
+	"github.com/Graylog2/collector/superv/supervisor/connection"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"github.com/open-telemetry/opamp-go/server/types"
 	"go.uber.org/zap"
 
-	"github.com/Graylog2/collector-sidecar/superv/auth"
-	"github.com/Graylog2/collector-sidecar/superv/config"
-	"github.com/Graylog2/collector-sidecar/superv/configmanager"
-	"github.com/Graylog2/collector-sidecar/superv/configmerge"
-	"github.com/Graylog2/collector-sidecar/superv/healthmonitor"
-	"github.com/Graylog2/collector-sidecar/superv/keen"
-	"github.com/Graylog2/collector-sidecar/superv/opamp"
-	"github.com/Graylog2/collector-sidecar/superv/ownlogs"
+	"github.com/Graylog2/collector/superv/auth"
+	"github.com/Graylog2/collector/superv/config"
+	"github.com/Graylog2/collector/superv/configmanager"
+	"github.com/Graylog2/collector/superv/configmerge"
+	"github.com/Graylog2/collector/superv/healthmonitor"
+	"github.com/Graylog2/collector/superv/keen"
+	"github.com/Graylog2/collector/superv/opamp"
+	"github.com/Graylog2/collector/superv/ownlogs"
 )
 
 const (

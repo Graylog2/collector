@@ -1,4 +1,4 @@
-module github.com/Graylog2/collector-sidecar/receiver/windowseventlogreceiver
+module github.com/Graylog2/collector/receiver/windowseventlogreceiver
 
 go 1.26.0
 

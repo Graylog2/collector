@@ -28,7 +28,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Graylog2/collector-sidecar/superv/config"
+	"github.com/Graylog2/collector/superv/config"
 	"go.opentelemetry.io/contrib/bridges/otelzap"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
@@ -38,7 +38,7 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-const instrumentationName = "github.com/Graylog2/collector-sidecar/superv"
+const instrumentationName = "github.com/Graylog2/collector/superv"
 
 // Settings holds the OTLP endpoint configuration derived from
 // TelemetryConnectionSettings.

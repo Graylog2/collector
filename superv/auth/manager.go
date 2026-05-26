@@ -32,11 +32,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/config"
+	"github.com/Graylog2/collector/superv/config"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/curve25519"
 
-	"github.com/Graylog2/collector-sidecar/superv/persistence"
+	"github.com/Graylog2/collector/superv/persistence"
 )
 
 // Manager handles authentication including enrollment, key management, and JWT generation.

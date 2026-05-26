@@ -5,9 +5,9 @@ module go.opentelemetry.io/collector/cmd/builder
 go 1.26.0
 
 require (
-	github.com/Graylog2/collector-sidecar/extension/sidecar v1.5.0
-	github.com/Graylog2/collector-sidecar/receiver/windowseventlogreceiver v0.0.0
-	github.com/Graylog2/collector-sidecar/superv v0.0.0-00010101000000-000000000000
+	github.com/Graylog2/collector/extension/sidecar v1.5.0
+	github.com/Graylog2/collector/receiver/windowseventlogreceiver v0.0.0
+	github.com/Graylog2/collector/superv v0.0.0-00010101000000-000000000000
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.150.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampextension v0.150.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.150.0
@@ -219,8 +219,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/Graylog2/collector-sidecar/extension/sidecar => ../extension/sidecar
+replace github.com/Graylog2/collector/extension/sidecar => ../extension/sidecar
 
-replace github.com/Graylog2/collector-sidecar/receiver/windowseventlogreceiver => ../receiver/windowseventlogreceiver
+replace github.com/Graylog2/collector/receiver/windowseventlogreceiver => ../receiver/windowseventlogreceiver
 
-replace github.com/Graylog2/collector-sidecar/superv => ../superv
+replace github.com/Graylog2/collector/superv => ../superv

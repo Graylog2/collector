@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/ownlogs"
-	"github.com/Graylog2/collector-sidecar/superv/version"
+	"github.com/Graylog2/collector/superv/ownlogs"
+	"github.com/Graylog2/collector/superv/version"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"go.uber.org/zap"
 )

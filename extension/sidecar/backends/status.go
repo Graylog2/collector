@@ -17,7 +17,7 @@ package backends
 
 import (
 	"fmt"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/system"
+	"github.com/Graylog2/collector/extension/sidecar/system"
 )
 
 const (

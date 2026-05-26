@@ -25,8 +25,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Graylog2/collector-sidecar/superv/persistence"
-	"github.com/Graylog2/collector-sidecar/superv/supervisor/connection"
+	"github.com/Graylog2/collector/superv/persistence"
+	"github.com/Graylog2/collector/superv/supervisor/connection"
 )
 
 // rebuildTLSConfigFromPEM reconstructs a *tls.Config from the raw PEM bytes

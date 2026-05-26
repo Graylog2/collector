@@ -23,8 +23,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Graylog2/collector-sidecar/superv/internal/testpki"
-	"github.com/Graylog2/collector-sidecar/superv/internal/testprotos"
+	"github.com/Graylog2/collector/superv/internal/testpki"
+	"github.com/Graylog2/collector/superv/internal/testprotos"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -23,11 +23,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/config"
-	"github.com/Graylog2/collector-sidecar/superv/ownlogs"
-	"github.com/Graylog2/collector-sidecar/superv/persistence"
-	"github.com/Graylog2/collector-sidecar/superv/supervisor"
-	"github.com/Graylog2/collector-sidecar/superv/version"
+	"github.com/Graylog2/collector/superv/config"
+	"github.com/Graylog2/collector/superv/ownlogs"
+	"github.com/Graylog2/collector/superv/persistence"
+	"github.com/Graylog2/collector/superv/supervisor"
+	"github.com/Graylog2/collector/superv/version"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

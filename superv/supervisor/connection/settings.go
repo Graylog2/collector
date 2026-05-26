@@ -29,7 +29,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/persistence"
+	"github.com/Graylog2/collector/superv/persistence"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"go.uber.org/zap"
 )

@@ -3,8 +3,8 @@
 package main
 
 import (
-	sidecar "github.com/Graylog2/collector-sidecar/extension/sidecar"
-	windowseventlogreceiver "github.com/Graylog2/collector-sidecar/receiver/windowseventlogreceiver"
+	sidecar "github.com/Graylog2/collector/extension/sidecar"
+	windowseventlogreceiver "github.com/Graylog2/collector/receiver/windowseventlogreceiver"
 	healthcheckextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension"
 	opampextension "github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampextension"
 	filestorage "github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage"
@@ -58,7 +58,7 @@ func components() (otelcol.Factories, error) {
 		return otelcol.Factories{}, err
 	}
 	factories.ExtensionModules = makeModulesMap(factories.Extensions, map[component.Type]string{
-		sidecar.NewFactory().Type():              "github.com/Graylog2/collector-sidecar/extension/sidecar v1.5.0",
+		sidecar.NewFactory().Type():              "github.com/Graylog2/collector/extension/sidecar v1.5.0",
 		healthcheckextension.NewFactory().Type(): "github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.150.0",
 		opampextension.NewFactory().Type():       "github.com/open-telemetry/opentelemetry-collector-contrib/extension/opampextension v0.150.0",
 		filestorage.NewFactory().Type():          "github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.150.0",
@@ -81,7 +81,7 @@ func components() (otelcol.Factories, error) {
 		filelogreceiver.NewFactory().Type():             "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.150.0",
 		journaldreceiver.NewFactory().Type():            "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/journaldreceiver v0.150.0",
 		macosunifiedloggingreceiver.NewFactory().Type(): "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/macosunifiedloggingreceiver v0.150.0",
-		windowseventlogreceiver.NewFactory().Type():     "github.com/Graylog2/collector-sidecar/receiver/windowseventlogreceiver v0.0.0",
+		windowseventlogreceiver.NewFactory().Type():     "github.com/Graylog2/collector/receiver/windowseventlogreceiver v0.0.0",
 	})
 
 	factories.Exporters, err = otelcol.MakeFactoryMap[exporter.Factory](

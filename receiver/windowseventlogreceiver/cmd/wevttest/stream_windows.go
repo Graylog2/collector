@@ -20,7 +20,7 @@ import (
 	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
-	wel "github.com/Graylog2/collector-sidecar/receiver/windowseventlogreceiver"
+	wel "github.com/Graylog2/collector/receiver/windowseventlogreceiver"
 )
 
 func streamEvents(ctx context.Context, channels []string, startAt string, f *formatter) error {

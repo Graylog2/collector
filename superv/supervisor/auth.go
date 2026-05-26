@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/Graylog2/collector-sidecar/superv/supervisor/connection"
+	"github.com/Graylog2/collector/superv/supervisor/connection"
 	"go.uber.org/zap"
 )
 

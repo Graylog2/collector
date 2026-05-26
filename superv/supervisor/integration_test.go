@@ -32,9 +32,9 @@ import (
 	"go.uber.org/zap/zaptest"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/Graylog2/collector-sidecar/superv/auth"
-	"github.com/Graylog2/collector-sidecar/superv/internal/testserver"
-	"github.com/Graylog2/collector-sidecar/superv/persistence"
+	"github.com/Graylog2/collector/superv/auth"
+	"github.com/Graylog2/collector/superv/internal/testserver"
+	"github.com/Graylog2/collector/superv/persistence"
 )
 
 func TestIntegration_Enrollment(t *testing.T) {

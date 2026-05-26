@@ -1,4 +1,4 @@
-module github.com/Graylog2/collector-sidecar/superv
+module github.com/Graylog2/collector/superv
 
 go 1.26.0
 

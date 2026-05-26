@@ -23,9 +23,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/auth"
-	"github.com/Graylog2/collector-sidecar/superv/config"
-	"github.com/Graylog2/collector-sidecar/superv/supervisor/connection"
+	"github.com/Graylog2/collector/superv/auth"
+	"github.com/Graylog2/collector/superv/config"
+	"github.com/Graylog2/collector/superv/supervisor/connection"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

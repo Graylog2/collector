@@ -28,8 +28,8 @@ import (
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"go.uber.org/zap"
 
-	"github.com/Graylog2/collector-sidecar/superv/configmerge"
-	"github.com/Graylog2/collector-sidecar/superv/persistence"
+	"github.com/Graylog2/collector/superv/configmerge"
+	"github.com/Graylog2/collector/superv/persistence"
 )
 
 // Config holds the configuration for the config manager.

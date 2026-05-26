@@ -16,7 +16,7 @@
 package system
 
 import (
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/common"
+	"github.com/Graylog2/collector/extension/sidecar/common"
 	"runtime"
 )
 

@@ -1,4 +1,4 @@
-module github.com/Graylog2/collector-sidecar/extension/sidecar
+module github.com/Graylog2/collector/extension/sidecar
 
 go 1.25.0
 

@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Graylog2/collector-sidecar/superv"
-	"github.com/Graylog2/collector-sidecar/superv/ownlogs"
+	"github.com/Graylog2/collector/superv"
+	"github.com/Graylog2/collector/superv/ownlogs"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/otelcol"
 	"go.uber.org/zap"

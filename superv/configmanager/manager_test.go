@@ -28,7 +28,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
-	"github.com/Graylog2/collector-sidecar/superv/configmerge"
+	"github.com/Graylog2/collector/superv/configmerge"
 )
 
 func createTestRemoteConfig(configName string, configBody []byte, hash []byte) *protobufs.AgentRemoteConfig {

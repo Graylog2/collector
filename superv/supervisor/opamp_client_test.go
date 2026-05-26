@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/healthmonitor"
+	"github.com/Graylog2/collector/superv/healthmonitor"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )

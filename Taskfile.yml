@@ -14,8 +14,8 @@ vars:
     sh: git rev-parse --short HEAD
   GO_LDFLAGS: >-
     -s
-    -X github.com/Graylog2/collector-sidecar/superv/version.version={{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}
-    -X github.com/Graylog2/collector-sidecar/superv/version.commit={{.GIT_REV}}
+    -X github.com/Graylog2/collector/superv/version.version={{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}
+    -X github.com/Graylog2/collector/superv/version.commit={{.GIT_REV}}
   WINDOWS_INSTALLER_VERSION: '{{.COLLECTOR_VERSION}}-{{.COLLECTOR_REVISION}}{{.COLLECTOR_VERSION_SUFFIX | replace "-" "."}}'
   FMT_ARGS: >-
     -f .license.template

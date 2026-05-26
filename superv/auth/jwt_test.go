@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/internal/testpki"
+	"github.com/Graylog2/collector/superv/internal/testpki"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
 )

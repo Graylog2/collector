@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/config"
-	"github.com/Graylog2/collector-sidecar/superv/configmanager"
-	"github.com/Graylog2/collector-sidecar/superv/keen"
+	"github.com/Graylog2/collector/superv/config"
+	"github.com/Graylog2/collector/superv/configmanager"
+	"github.com/Graylog2/collector/superv/keen"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

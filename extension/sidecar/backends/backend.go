@@ -24,14 +24,14 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/helpers"
+	"github.com/Graylog2/collector/extension/sidecar/helpers"
 
 	"github.com/flynn-archive/go-shlex"
 
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/api/graylog"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/cfg"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/common"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/system"
+	"github.com/Graylog2/collector/extension/sidecar/api/graylog"
+	"github.com/Graylog2/collector/extension/sidecar/cfg"
+	"github.com/Graylog2/collector/extension/sidecar/common"
+	"github.com/Graylog2/collector/extension/sidecar/system"
 )
 
 type Backend struct {

@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/healthmonitor"
+	"github.com/Graylog2/collector/superv/healthmonitor"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"go.uber.org/zap"
 )

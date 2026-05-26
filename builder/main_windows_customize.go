@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Graylog2/collector-sidecar/superv"
+	"github.com/Graylog2/collector/superv"
 	"go.opentelemetry.io/collector/otelcol"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
