@@ -59,10 +59,8 @@ jobs:
           gh release download --repo goreleaser/nfpm -p "*amd64.deb" -O nfpm.deb
           sudo apt-get install -y ./nfpm.deb
 
-      - name: "Build packages"
-        env:
-          TIMESTAMP: "${{ env.timestamp }}"
-        run: "nfpm package -f dist/linux/nfpm.yaml -p deb -t target/"
+      - name: "Build Linux packages"
+        run: "go tool task package:linux"
 
       - name: "Upload build artifacts to S3"
         # Dependabot doesn't have access to the S3 secrets.

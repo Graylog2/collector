@@ -12,6 +12,7 @@ vars:
   COLLECTOR_REVISION: '{{.COLLECTOR_REVISION}}'
   GIT_REV:
     sh: git rev-parse --short HEAD
+  TIMESTAMP_NOW: '{{now | date "20060102150405"}}'
   GO_LDFLAGS: >-
     -s
     -X github.com/Graylog2/collector/superv/version.version={{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}
@@ -93,6 +94,53 @@ tasks:
       - task: fmt:check
       - task: vulncheck
       - task: builder:build:all
+
+  package:linux:
+    desc: "Build Linux packages"
+    platforms: [linux]
+    cmds:
+      - for: ["deb", "rpm"]
+        task: "package:linux:{{.ITEM}}"
+
+  package:linux:deb:
+    desc: "Build Linux DEB"
+    platforms: [linux]
+    cmds:
+      - for: ["amd64", "arm64"]
+        task: package:linux:do
+        vars:
+          NFPM_PACKAGER: "deb"
+          NFPM_ARCH: "{{.ITEM}}"
+
+  package:linux:rpm:
+    desc: "Build Linux RPM"
+    platforms: [linux]
+    cmds:
+      - for: ["amd64", "arm64"]
+        task: package:linux:do
+        vars:
+          NFPM_PACKAGER: "rpm"
+          NFPM_ARCH: "{{.ITEM}}"
+
+  package:linux:do:
+    internal: true
+    platforms: [linux]
+    requires:
+      vars: ["NFPM_PACKAGER", "NFPM_ARCH"]
+    env:
+      VERSION: "{{.COLLECTOR_VERSION}}"
+      VERSION_RELEASE: '{{.COLLECTOR_REVISION}}{{if ne .COLLECTOR_VERSION_SUFFIX ""}}.{{trimPrefix "-" .COLLECTOR_VERSION_SUFFIX}}.{{.TIMESTAMP_NOW}}{{end}}'
+      ARCH: "{{.NFPM_ARCH}}"
+    cmds:
+      - cmd: echo PACKAGER={{.NFPM_PACKAGER }}
+        silent: true
+      - cmd: echo VERSION=$VERSION
+        silent: true
+      - cmd: echo VERSION_RELEASE=$VERSION_RELEASE
+        silent: true
+      - cmd: echo ARCH=$ARCH
+        silent: true
+      - echo nfpm package -f {{.ROOT_DIR}}/dist/linux/nfpm.yaml -p {{.NFPM_PACKAGER | lower}} -t {{.ROOT_DIR}}/target/
 
   package:windows:exe:sign:
     desc: 'Sign Windows MSI'

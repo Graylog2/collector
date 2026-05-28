@@ -1,10 +1,10 @@
 name: "graylog-collector"
 description: "Graylog Collector"
 
-version: "0.1.0"
-release: "1.SNAPSHOT-${TIMESTAMP}"
+version: "${VERSION}"
+release: "${VERSION_RELEASE}"
 
-arch: "amd64"
+arch: "${ARCH}"
 platform: "linux"
 
 section: "optional"
@@ -17,8 +17,9 @@ homepage: "https://www.graylog.org/"
 license: "SSPL-1"
 
 contents:
-  - src: "target/graylog-collector-linux-amd64"
+  - src: "target/graylog-collector-linux-${ARCH}"
     dst: "/usr/bin/graylog-collector"
+    expand: true
     file_info:
       owner: "root"
       group: "root"
