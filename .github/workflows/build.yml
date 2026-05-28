@@ -66,7 +66,7 @@ jobs:
 
       - name: "Upload build artifacts to S3"
         # Dependabot doesn't have access to the S3 secrets.
-        if: "github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'"
+        if: "github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]')"
         env:
           AWS_DEFAULT_REGION: "eu-west-1"
           AWS_ACCESS_KEY_ID: "${{ secrets.AWS_S3_SNAPSHOTS_ACCESS_KEY_ID }}"
