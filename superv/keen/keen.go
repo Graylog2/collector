@@ -139,15 +139,10 @@ func (c *Commander) start(ctx context.Context) error {
 	cmd.SysProcAttr = sysProcAttrs()
 	doneCh := make(chan struct{})
 
-	c.mu.Lock()
-	c.cmd = cmd
-	c.doneCh = doneCh
-	c.mu.Unlock()
-
 	if c.cfg.PassthroughLogs {
-		return c.startWithPassthroughLogging()
+		return c.startWithPassthroughLogging(cmd, doneCh)
 	}
-	return c.startNormal()
+	return c.startNormal(cmd, doneCh)
 }
 
 func (c *Commander) buildEnv() []string {
@@ -161,7 +156,7 @@ func (c *Commander) buildEnv() []string {
 	return env
 }
 
-func (c *Commander) startNormal() error {
+func (c *Commander) startNormal(cmd *exec.Cmd, doneCh chan struct{}) error {
 	c.mu.Lock()
 	if c.logWriter == nil {
 		c.logWriter = &timberjack.Logger{
@@ -172,8 +167,6 @@ func (c *Commander) startNormal() error {
 			LocalTime:  true,
 		}
 	}
-	cmd := c.cmd
-	doneCh := c.doneCh
 	logWriter := c.logWriter
 	c.mu.Unlock()
 
@@ -187,17 +180,17 @@ func (c *Commander) startNormal() error {
 
 	c.logger.Debug("Agent process started", zap.Int("pid", cmd.Process.Pid))
 
+	c.mu.Lock()
+	c.cmd = cmd
+	c.doneCh = doneCh
+	c.mu.Unlock()
+
 	go c.watch(cmd, doneCh)
 
 	return nil
 }
 
-func (c *Commander) startWithPassthroughLogging() error {
-	c.mu.Lock()
-	cmd := c.cmd
-	doneCh := c.doneCh
-	c.mu.Unlock()
-
+func (c *Commander) startWithPassthroughLogging(cmd *exec.Cmd, doneCh chan struct{}) error {
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		c.running.Store(false)
@@ -221,6 +214,11 @@ func (c *Commander) startWithPassthroughLogging() error {
 	go c.pipeOutput(stderrPipe, agentLogger, true)
 
 	c.logger.Debug("Agent process started", zap.Int("pid", cmd.Process.Pid))
+
+	c.mu.Lock()
+	c.cmd = cmd
+	c.doneCh = doneCh
+	c.mu.Unlock()
 
 	go c.watch(cmd, doneCh)
 
