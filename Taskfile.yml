@@ -140,7 +140,7 @@ tasks:
         silent: true
       - cmd: echo ARCH=$ARCH
         silent: true
-      - echo nfpm package -f {{.ROOT_DIR}}/dist/linux/nfpm.yaml -p {{.NFPM_PACKAGER | lower}} -t {{.ROOT_DIR}}/target/
+      - nfpm package -f {{.ROOT_DIR}}/dist/linux/nfpm.yaml -p {{.NFPM_PACKAGER | lower}} -t {{.ROOT_DIR}}/target/
 
   package:windows:exe:sign:
     desc: 'Sign Windows MSI'
