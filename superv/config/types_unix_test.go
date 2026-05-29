@@ -32,5 +32,6 @@ func TestConfigDefaultsDirectories(t *testing.T) {
 	assert.Equal(t, "/var/lib/graylog-collector/storage", cfg.Agent.StorageDir)
 	assert.Equal(t, "/var/lib/graylog-collector/keys", cfg.Keys.Dir)
 	assert.Equal(t, "/var/lib/graylog-collector/packages", cfg.Packages.StorageDir)
-	assert.Equal(t, "/var/lib/graylog-collector/supervisor/logs/supervisor.log", cfg.Logging.File)
+	assert.Equal(t, "/var/lib/graylog-collector/logs/supervisor.log", cfg.Logging.File)
+	assert.Equal(t, "/var/lib/graylog-collector/logs/agent.log", cfg.Agent.Logging.File)
 }
