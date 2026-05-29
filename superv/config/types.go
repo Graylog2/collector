@@ -302,9 +302,9 @@ func DefaultConfig() Config {
 			Logging: AgentLoggingConfig{
 				Level: "info",
 				File: platformDefaultValue(map[platformName]string{
-					linux:   filepath.Join(unixDataPathPrefix, "supervisor", "logs", "agent.log"),
-					darwin:  filepath.Join(unixDataPathPrefix, "supervisor", "logs", "agent.log"),
-					windows: filepath.Join(WindowsDataPathPrefix, "supervisor", "logs", "agent.log"),
+					linux:   filepath.Join(unixDataPathPrefix, "logs", "agent.log"),
+					darwin:  filepath.Join(unixDataPathPrefix, "logs", "agent.log"),
+					windows: filepath.Join(WindowsDataPathPrefix, "logs", "agent.log"),
 				}),
 				FileRotation: LogRotationConfig{
 					MaxSize:    25,
@@ -390,9 +390,9 @@ func DefaultConfig() Config {
 			Level:  "info",
 			Color:  false,
 			File: platformDefaultValue(map[platformName]string{
-				linux:   filepath.Join(unixDataPathPrefix, "supervisor", "logs", "supervisor.log"),
-				darwin:  filepath.Join(unixDataPathPrefix, "supervisor", "logs", "supervisor.log"),
-				windows: filepath.Join(WindowsDataPathPrefix, "supervisor", "logs", "supervisor.log"),
+				linux:   filepath.Join(unixDataPathPrefix, "logs", "supervisor.log"),
+				darwin:  filepath.Join(unixDataPathPrefix, "logs", "supervisor.log"),
+				windows: filepath.Join(WindowsDataPathPrefix, "logs", "supervisor.log"),
 			}),
 			FileRotation: LogRotationConfig{
 				MaxSize:    25,
