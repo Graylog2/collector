@@ -39,7 +39,7 @@ jobs:
       matrix:
         os: ["linux", "windows"]
 
-    runs-on: "${{ case(matrix.os == 'windows', format('runs-on={0}/image=windows25-base-x64/family=m7i', github.run_id), 'ubuntu-latest') }}"
+    runs-on: "${{ case(matrix.os == 'windows', format('runs-on={0}/runner=windows25-4-core', github.run_id), 'ubuntu-latest') }}"
 
     steps:
       - name: "Checkout repository"
