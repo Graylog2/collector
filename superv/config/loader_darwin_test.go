@@ -15,7 +15,7 @@
 //
 // SPDX-License-Identifier: SSPL-1.0
 
-//go:build linux
+//go:build darwin
 
 package config
 
@@ -28,6 +28,5 @@ import (
 func TestDefaultConfigPaths(t *testing.T) {
 	paths := DefaultConfigPaths()
 
-	require.Contains(t, paths, "/etc/graylog/collector/supervisor.yaml")
-	require.Contains(t, paths, "./supervisor.yaml")
+	require.Contains(t, paths, "/Library/Application Support/Graylog/Collector/supervisor.yaml")
 }
