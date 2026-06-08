@@ -12,6 +12,7 @@ on:
 
 defaults:
   run:
+    # Forces usage of Git Bash on Windows which makes the bash steps work.
     shell: "bash"
 
 env:
@@ -60,13 +61,15 @@ jobs:
 
       - name: "Setup env"
         run: |
+          # NOTE: Use UPPERCASE names here. They are inherited by later steps
+          # as-is. Windows environment variables are case-insensitive!
           {
-            echo "timestamp=${{ needs.init.outputs.timestamp }}"
+            echo "TIMESTAMP=${{ needs.init.outputs.timestamp }}"
 
             if [ "${{ github.event_name }}" = "pull_request" ]; then
-              echo "snapshot_path=pull-request/${{ needs.init.outputs.timestamp }}-run-${{ github.run_id }}-pr-${{ github.event.number }}"
+              echo "SNAPSHOT_PATH=pull-request/${{ needs.init.outputs.timestamp }}-run-${{ github.run_id }}-pr-${{ github.event.number }}"
             else
-              echo "snapshot_path=$BRANCH_NAME/${{ needs.init.outputs.timestamp }}-run-${{ github.run_id }}"
+              echo "SNAPSHOT_PATH=$BRANCH_NAME/${{ needs.init.outputs.timestamp }}-run-${{ github.run_id }}"
             fi
           } | tee -a "$GITHUB_ENV"
         env:
@@ -74,6 +77,7 @@ jobs:
           BRANCH_NAME: "${{ github.head_ref || github.ref_name }}"
 
       - name: "Setup nFPM"
+        if: "matrix.os == 'linux'"
         run: "go install github.com/goreleaser/nfpm/v2/cmd/nfpm@${{ env.NFPM_VERSION }}"
 
       - name: "Build Linux packages"
@@ -92,8 +96,6 @@ jobs:
           AWS_ACCESS_KEY_ID: "${{ secrets.AWS_S3_SNAPSHOTS_ACCESS_KEY_ID }}"
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_S3_SNAPSHOTS_SECRET_ACCESS_KEY }}
           AWS_S3_BUCKET: "${{ secrets.AWS_S3_SNAPSHOTS_BUCKET }}"
-          TIMESTAMP: "${{ env.timestamp }}"
-          SNAPSHOT_PATH: "${{ env.snapshot_path }}"
         working-directory: "target"
         run: |
           printf -- "## Artifacts - ${{ matrix.os }}\n\n" >> "$GITHUB_STEP_SUMMARY"
