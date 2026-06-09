@@ -166,3 +166,32 @@ tasks:
     desc: 'Sign Windows MSI'
     cmds:
       - codesigntool sign dist/pkg/graylog-collector-{{.COLLECTOR_VERSION}}.msi
+
+  version:set:release:
+    desc: 'Set version in version.env'
+    requires:
+      vars:
+        - RELEASE_VERSION
+        - RELEASE_REVISION
+    cmds:
+      - cmd: |
+          {{ $v := .RELEASE_VERSION | split "." }}
+          echo "COLLECTOR_VERSION_MAJOR={{ $v._0 }}"
+          echo "COLLECTOR_VERSION_MINOR={{ $v._1 }}"
+          echo "COLLECTOR_VERSION_PATCH={{ $v._2 }}"
+          echo "COLLECTOR_VERSION_SUFFIX="
+          echo "COLLECTOR_REVISION={{ .RELEASE_REVISION }}"
+
+  version:set:snapshot:
+    desc: 'Set SNAPSHOT version in version.env'
+    requires:
+      vars:
+        - SNAPSHOT_VERSION
+    cmds:
+      - cmd: |
+          {{ $v := .SNAPSHOT_VERSION | split "." }}
+          echo "COLLECTOR_VERSION_MAJOR={{ $v._0 }}"
+          echo "COLLECTOR_VERSION_MINOR={{ $v._1 }}"
+          echo "COLLECTOR_VERSION_PATCH={{ $v._2 }}"
+          echo "COLLECTOR_VERSION_SUFFIX=-SNAPSHOT"
+          echo "COLLECTOR_REVISION=1"
