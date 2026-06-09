@@ -23,14 +23,20 @@ jobs:
   tag:
     runs-on: "ubuntu-latest"
 
+    permissions:
+      contents: "write"
+
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v6"
         with:
+          ref: "main" # Pull latest revision!
           persist-credentials: true
 
       - name: "Setup Git"
-        uses: "Graylog2/internal-actions/setup-git@main"
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: "Setup Go environment"
         uses: "actions/setup-go@v6"
