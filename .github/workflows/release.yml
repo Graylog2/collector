@@ -62,7 +62,7 @@ jobs:
           git add -v version.env
           git diff --cached
           git commit -m "[release] Set version to ${{ inputs.release }}"
-          git tag "${{ inputs.release }}"
+          git tag "${{ inputs.version }}"
           git show
 
       - name: "Set SNAPSHOT versions"
