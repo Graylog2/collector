@@ -119,11 +119,21 @@ tasks:
           #      https://pkg.go.dev/net#hdr-Name_Resolution
           CGO_ENABLED: '1'
 
-  build:all:
-    desc: 'Build collector for all supported platforms'
+  build:windows:
+    desc: 'Build collector for all Windows platforms'
+    cmds:
+      - task: build:windows:amd64
+
+  build:unix:
+    desc: 'Build collector for all Unix platforms'
     cmds:
       - task: build:linux:amd64
       - task: build:linux:arm64
       - task: build:darwin:amd64
       - task: build:darwin:arm64
-      - task: build:windows:amd64
+
+  build:all:
+    desc: 'Build collector for all supported platforms'
+    cmds:
+      - task: build:unix
+      - task: build:windows
