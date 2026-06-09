@@ -13,6 +13,10 @@ on:
       revision:
         description: "The package revision"
         default: "1"
+      push-scm-changes:
+        description: "Should commits and tags be pushed?"
+        required: false
+        default: false
       branch:
         description: "Branch to use"
         default: "main"
@@ -21,6 +25,10 @@ defaults:
   run:
     # Forces usage of Git Bash on Windows which makes the bash steps work.
     shell: "bash"
+
+concurrency:
+  group: "release"
+  cancel-in-progress: false
 
 jobs:
   tag:
@@ -80,6 +88,8 @@ jobs:
           git commit -m "[snapshot] Set version to ${{ inputs.snapshot-version }}-SNAPSHOT"
           git show
 
-      - name: "Render changelog"
+      - name: "Push commits and tags"
+        if: "inputs.push-scm-changes == true"
         run: |
-          graylog-project changelog render "changelog/${{ inputs.version }}" | tee -a "$GITHUB_STEP_SUMMARY"
+          git push origin
+          git push origin "${{ inputs.version }}"
