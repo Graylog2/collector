@@ -7,6 +7,9 @@ on:
       version:
         description: "The version to tag and release"
         required: true
+      snapshot-version:
+        description: "The new SNAPSHOT version"
+        required: true
       revision:
         description: "The package revision"
         default: "1"
@@ -25,3 +28,42 @@ jobs:
         uses: "actions/checkout@v6"
         with:
           persist-credentials: true
+
+      - name: "Setup Git"
+        uses: "Graylog2/internal-actions/setup-git@main"
+
+      - name: "Setup Go environment"
+        uses: "actions/setup-go@v6"
+        with:
+          go-version: "1.26"
+
+      - name: "Setup environment"
+        run: "go tool task -l"
+
+      - name: "Set release versions"
+        env:
+          RELEASE_VERSION: "${{ inputs.version }}"
+          RELEASE_REVISION: "${{ inputs.revision }}"
+        run: "go tool task version:set:release > version.env"
+
+      # TODO: Rotate changelogs
+
+      - name: "Tag release"
+        run: |
+          git add -v version.env
+          git diff --cached
+          git commit -m "[release] Set version to ${{ inputs.release }}"
+          git tag "${{ inputs.release }}"
+          git show
+
+      - name: "Set SNAPSHOT versions"
+        env:
+          SNAPSHOT_VERSION: "${{ inputs.snapshot-version }}"
+        run: "go tool task version:set:snapshot > version.env"
+
+      - name: "Commit snapshot"
+        run: |
+          git add -v version.env
+          git diff --cached
+          git commit -m "[snapshot] Set version to ${{ inputs.snapshot-version }}-SNAPSHOT"
+          git show
