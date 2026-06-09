@@ -41,6 +41,9 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: "Setup graylog-project CLI"
+        uses: "Graylog2/actions/project-cli@main"
+
       - name: "Setup Go environment"
         uses: "actions/setup-go@v6"
         with:
@@ -55,13 +58,14 @@ jobs:
           RELEASE_REVISION: "${{ inputs.revision }}"
         run: "go tool task version:set:release > version.env"
 
-      # TODO: Rotate changelogs
+      - name: "Rotate changelog"
+        run: |
+          graylog-project changelog release:path "${{ inputs.version }}"
 
       - name: "Tag release"
         run: |
           git add -v version.env
-          git diff --cached
-          git commit -m "[release] Set version to ${{ inputs.release }}"
+          git commit -m "[release] Set version to ${{ inputs.version }}-${{ inputs.revision }}"
           git tag "${{ inputs.version }}"
           git show
 
@@ -73,6 +77,9 @@ jobs:
       - name: "Commit snapshot"
         run: |
           git add -v version.env
-          git diff --cached
           git commit -m "[snapshot] Set version to ${{ inputs.snapshot-version }}-SNAPSHOT"
           git show
+
+      - name: "Render changelog"
+        run: |
+          graylog-project changelog render "changelog/${{ inputs.version }}" | tee -a "$GITHUB_STEP_SUMMARY"
