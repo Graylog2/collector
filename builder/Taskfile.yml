@@ -46,10 +46,12 @@ tasks:
       GOOS: '{{.BUILD_OS}}'
       GOARCH: '{{.BUILD_ARCH}}'
       CGO_ENABLED: '{{if ne .CGO_ENABLED "1"}}0{{else}}1{{end}}'
+    vars:
+      VERSION: '{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}'
     deps: [generate]
     cmds:
       - mkdir -p target
-      - go build -ldflags "{{.GO_LDFLAGS}}" -o {{.OUT_DIR}}/target/graylog-collector-{{.BUILD_OS}}-{{.BUILD_ARCH}}{{.BIN_SUFFIX}} .
+      - go build -ldflags "{{.GO_LDFLAGS}}" -o {{.OUT_DIR}}/target/graylog-collector-{{.VERSION}}-{{.BUILD_OS}}-{{.BUILD_ARCH}}{{.BIN_SUFFIX}} .
 
   build:linux:amd64:
     desc: 'Cross-compile collector for linux/amd64'

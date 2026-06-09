@@ -130,6 +130,7 @@ tasks:
     env:
       VERSION: "{{.COLLECTOR_VERSION}}"
       VERSION_RELEASE: '{{.COLLECTOR_REVISION}}{{if ne .COLLECTOR_VERSION_SUFFIX ""}}.{{trimPrefix "-" .COLLECTOR_VERSION_SUFFIX}}.{{.TIMESTAMP_NOW}}{{end}}'
+      VERSION_SUFFIX: '{{.COLLECTOR_VERSION_SUFFIX}}'
       ARCH: "{{.NFPM_ARCH}}"
     cmds:
       - cmd: echo PACKAGER={{.NFPM_PACKAGER }}

@@ -17,7 +17,7 @@ homepage: "https://www.graylog.org/"
 license: "SSPL-1"
 
 contents:
-  - src: "target/graylog-collector-linux-${ARCH}"
+  - src: "target/graylog-collector-${VERSION}${VERSION_SUFFIX}-linux-${ARCH}"
     dst: "/usr/bin/graylog-collector"
     expand: true
     file_info:
