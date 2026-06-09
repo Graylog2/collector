@@ -13,6 +13,9 @@ on:
       revision:
         description: "The package revision"
         default: "1"
+      branch:
+        description: "Branch to use"
+        default: "main"
 
 defaults:
   run:
@@ -30,7 +33,7 @@ jobs:
       - name: "Checkout repository"
         uses: "actions/checkout@v6"
         with:
-          ref: "main" # Pull latest revision!
+          ref: "${{ inputs.branch }}" # Pull latest revision!
           persist-credentials: true
 
       - name: "Setup Git"
