@@ -1,0 +1,27 @@
+name: "Release"
+run-name: "Release - ${{ inputs.version }}-${{ inputs.revision }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version to tag and release"
+        required: true
+      revision:
+        description: "The package revision"
+        default: "1"
+
+defaults:
+  run:
+    # Forces usage of Git Bash on Windows which makes the bash steps work.
+    shell: "bash"
+
+jobs:
+  tag:
+    runs-on: "ubuntu-latest"
+
+    steps:
+      - name: "Checkout repository"
+        uses: "actions/checkout@v6"
+        with:
+          persist-credentials: true
