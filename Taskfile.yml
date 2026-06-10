@@ -177,11 +177,14 @@ tasks:
     cmds:
       - cmd: |
           {{ $v := .RELEASE_VERSION | split "." }}
-          echo "COLLECTOR_VERSION_MAJOR={{ $v._0 }}"
-          echo "COLLECTOR_VERSION_MINOR={{ $v._1 }}"
-          echo "COLLECTOR_VERSION_PATCH={{ $v._2 }}"
-          echo "COLLECTOR_VERSION_SUFFIX="
-          echo "COLLECTOR_REVISION={{ .RELEASE_REVISION }}"
+          {
+            echo "COLLECTOR_VERSION_MAJOR={{ $v._0 }}"
+            echo "COLLECTOR_VERSION_MINOR={{ $v._1 }}"
+            echo "COLLECTOR_VERSION_PATCH={{ $v._2 }}"
+            echo "COLLECTOR_VERSION_SUFFIX="
+            echo "COLLECTOR_REVISION={{ .RELEASE_REVISION }}"
+          } > version.env.new
+          mv version.env.new version.env
 
   version:set:snapshot:
     desc: 'Set SNAPSHOT version in version.env'
@@ -191,21 +194,27 @@ tasks:
     cmds:
       - cmd: |
           {{ $v := .SNAPSHOT_VERSION | split "." }}
-          echo "COLLECTOR_VERSION_MAJOR={{ $v._0 }}"
-          echo "COLLECTOR_VERSION_MINOR={{ $v._1 }}"
-          echo "COLLECTOR_VERSION_PATCH={{ $v._2 }}"
-          echo "COLLECTOR_VERSION_SUFFIX=-SNAPSHOT"
-          echo "COLLECTOR_REVISION=1"
+          {
+            echo "COLLECTOR_VERSION_MAJOR={{ $v._0 }}"
+            echo "COLLECTOR_VERSION_MINOR={{ $v._1 }}"
+            echo "COLLECTOR_VERSION_PATCH={{ $v._2 }}"
+            echo "COLLECTOR_VERSION_SUFFIX=-SNAPSHOT"
+            echo "COLLECTOR_REVISION=1"
+          } > version.env.new
+          mv version.env.new version.env
 
   version:bump:snapshot:patch:
     desc: 'Bump the patch version and set SNAPSHOT suffix in version.env'
     cmds:
       - cmd: |
-          echo "COLLECTOR_VERSION_MAJOR={{.COLLECTOR_VERSION_MAJOR}}"
-          echo "COLLECTOR_VERSION_MINOR={{.COLLECTOR_VERSION_MINOR}}"
-          echo "COLLECTOR_VERSION_PATCH={{ add (.COLLECTOR_VERSION_PATCH | atoi) 1}}"
-          echo "COLLECTOR_VERSION_SUFFIX=-SNAPSHOT"
-          echo "COLLECTOR_REVISION=1"
+          {
+            echo "COLLECTOR_VERSION_MAJOR={{.COLLECTOR_VERSION_MAJOR}}"
+            echo "COLLECTOR_VERSION_MINOR={{.COLLECTOR_VERSION_MINOR}}"
+            echo "COLLECTOR_VERSION_PATCH={{ add (.COLLECTOR_VERSION_PATCH | atoi) 1}}"
+            echo "COLLECTOR_VERSION_SUFFIX=-SNAPSHOT"
+            echo "COLLECTOR_REVISION=1"
+          } > version.env.new
+          mv version.env.new version.env
 
   version:get:
     desc: 'Bump the patch version and set SNAPSHOT suffix in version.env'

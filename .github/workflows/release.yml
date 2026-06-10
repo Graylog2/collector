@@ -67,7 +67,7 @@ jobs:
         env:
           RELEASE_VERSION: "${{ inputs.version }}"
           RELEASE_REVISION: "${{ inputs.revision }}"
-        run: "go tool task version:set:release | tee version.env"
+        run: "go tool task version:set:release"
 
       - name: "Rotate changelog"
         run: |
@@ -81,7 +81,7 @@ jobs:
           git show
 
       - name: "Set next SNAPSHOT version"
-        run: "go tool task version:bump:snapshot:patch | tee version.env"
+        run: "go tool task version:bump:snapshot:patch"
 
       - name: "Commit snapshot"
         run: |
