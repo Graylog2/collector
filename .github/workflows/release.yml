@@ -11,6 +11,7 @@ on:
         description: "The package revision"
         default: "1"
       push-scm-changes:
+        type: "boolean"
         description: "Should commits and tags be pushed?"
         required: false
         default: false
@@ -66,7 +67,7 @@ jobs:
         env:
           RELEASE_VERSION: "${{ inputs.version }}"
           RELEASE_REVISION: "${{ inputs.revision }}"
-        run: "go tool task version:set:release > version.env"
+        run: "go tool task version:set:release | tee version.env"
 
       - name: "Rotate changelog"
         run: |
@@ -80,7 +81,7 @@ jobs:
           git show
 
       - name: "Set next SNAPSHOT version"
-        run: "go tool task version:bump:snapshot:patch > version.env"
+        run: "go tool task version:bump:snapshot:patch | tee version.env"
 
       - name: "Commit snapshot"
         run: |
