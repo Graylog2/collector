@@ -145,13 +145,17 @@ tasks:
 
   package:windows:exe:sign:
     desc: 'Sign Windows MSI'
+    vars:
+      VERSION: '{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}'
     cmds:
-      - codesigntool sign {{.ROOT_DIR}}/target/graylog-collector-windows-amd64.exe
+      - codesigntool sign {{.ROOT_DIR}}/target/graylog-collector-{{.VERSION}}-windows-amd64.exe
 
   package:windows:msi:
     desc: 'Build Windows MSI installer (Windows only; requires dotnet SDK + WiX 7)'
     platforms: [windows]
     deps: [builder:build:windows:amd64]
+    vars:
+      VERSION: '{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}'
     cmds:
       # TODO: Enable .exe signing?
       #- task: package:windows:exe:sign
@@ -159,7 +163,7 @@ tasks:
         dotnet build dist/windows/graylog-collector.wixproj
         -c Release
         -p:Version={{.COLLECTOR_VERSION}}
-        -p:SourceExe={{.ROOT_DIR}}/target/graylog-collector-windows-amd64.exe
+        -p:SourceExe={{.ROOT_DIR}}/target/graylog-collector-{{.VERSION}}-windows-amd64.exe
         -p:LicenseFile={{.ROOT_DIR}}/LICENSE
         -p:OutputPath={{.ROOT_DIR}}/target/
 
