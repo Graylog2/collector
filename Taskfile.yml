@@ -196,3 +196,20 @@ tasks:
           echo "COLLECTOR_VERSION_PATCH={{ $v._2 }}"
           echo "COLLECTOR_VERSION_SUFFIX=-SNAPSHOT"
           echo "COLLECTOR_REVISION=1"
+
+  version:bump:snapshot:patch:
+    desc: 'Bump the patch version and set SNAPSHOT suffix in version.env'
+    cmds:
+      - cmd: |
+          echo "COLLECTOR_VERSION_MAJOR={{.COLLECTOR_VERSION_MAJOR}}"
+          echo "COLLECTOR_VERSION_MINOR={{.COLLECTOR_VERSION_MINOR}}"
+          echo "COLLECTOR_VERSION_PATCH={{ add (.COLLECTOR_VERSION_PATCH | atoi) 1}}"
+          echo "COLLECTOR_VERSION_SUFFIX=-SNAPSHOT"
+          echo "COLLECTOR_REVISION=1"
+
+  version:get:
+    desc: 'Bump the patch version and set SNAPSHOT suffix in version.env'
+    silent: true
+    cmds:
+      - cmd: |
+          echo "{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}"
