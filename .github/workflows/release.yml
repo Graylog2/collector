@@ -86,7 +86,7 @@ jobs:
       - name: "Commit snapshot"
         run: |
           git add -v version.env
-          git commit -m "[snapshot] Set version to $(go tool task version:get)"
+          git commit -m "Set version to $(go tool task version:get)"
           git show
 
       - name: "Push commits and tags"
