@@ -32,7 +32,10 @@ func (s *Supervisor) checkCertificateRenewal() time.Duration {
 
 	fallback := s.authCfg.RenewalInterval
 
-	if !s.authManager.IsEnrolled() {
+	if isEnrolled, err := s.authManager.IsEnrolled(); err == nil && !isEnrolled {
+		return fallback
+	} else if err != nil {
+		s.logger.Warn("Failed to check certificate renewal", zap.Error(err))
 		return fallback
 	}
 

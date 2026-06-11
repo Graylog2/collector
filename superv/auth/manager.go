@@ -98,7 +98,7 @@ func (m *Manager) GetSigningCertPath() string {
 }
 
 // IsEnrolled returns true if the supervisor has a certificate.
-func (m *Manager) IsEnrolled() bool {
+func (m *Manager) IsEnrolled() (bool, error) {
 	return persistence.CertificateExists(m.keysDir)
 }
 

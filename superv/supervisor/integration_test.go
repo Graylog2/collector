@@ -64,7 +64,11 @@ func TestIntegration_Enrollment(t *testing.T) {
 	})
 
 	// Verify not enrolled initially
-	require.False(t, authMgr.IsEnrolled())
+	{
+		isEnrolled, err := authMgr.IsEnrolled()
+		require.NoError(t, err)
+		require.False(t, isEnrolled)
+	}
 
 	// Load instance UID
 	instanceUID, err := persistence.LoadInstanceUID(dir)
@@ -77,7 +81,11 @@ func TestIntegration_Enrollment(t *testing.T) {
 
 	// Verify pending state
 	require.True(t, authMgr.HasPendingEnrollment())
-	require.False(t, authMgr.IsEnrolled())
+	{
+		isEnrolled, err := authMgr.IsEnrolled()
+		require.NoError(t, err)
+		require.False(t, isEnrolled)
+	}
 
 	// Phase 2: Send CSR via OpAMP WebSocket and receive certificate
 	certPEM := sendCSRViaOpAMP(t, serverURL, instanceUID, result.CSRPEM)
@@ -88,8 +96,12 @@ func TestIntegration_Enrollment(t *testing.T) {
 
 	// Verify enrolled
 	require.False(t, authMgr.HasPendingEnrollment())
-	require.True(t, authMgr.IsEnrolled())
-	require.NotEmpty(t, authMgr.CertFingerprint())
+	{
+		isEnrolled, err := authMgr.IsEnrolled()
+		require.NoError(t, err)
+		require.True(t, isEnrolled)
+		require.NotEmpty(t, authMgr.CertFingerprint())
+	}
 
 	// Verify we can generate a JWT
 	jwt, err := authMgr.GenerateJWT()
@@ -147,7 +159,9 @@ func TestIntegration_EnrollmentPersistence(t *testing.T) {
 		KeysDir: keysDir,
 	})
 
-	require.True(t, authMgr2.IsEnrolled())
+	isEnrolled, err := authMgr2.IsEnrolled()
+	require.NoError(t, err)
+	require.True(t, isEnrolled)
 
 	err = authMgr2.LoadCredentials()
 	require.NoError(t, err)
@@ -319,7 +333,9 @@ func TestIntegration_CertificateRenewal(t *testing.T) {
 
 	err = authMgr.CompleteEnrollment(certPEM)
 	require.NoError(t, err)
-	require.True(t, authMgr.IsEnrolled())
+	isEnrolled, err := authMgr.IsEnrolled()
+	require.NoError(t, err)
+	require.True(t, isEnrolled)
 
 	// Save old cert info for comparison
 	oldFingerprint := authMgr.CertFingerprint()

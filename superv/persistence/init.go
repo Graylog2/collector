@@ -31,9 +31,20 @@ func InitIdentity(logger *zap.Logger, persistenceDir string, keysDir string) err
 		return err
 	}
 
-	signingKeyExists := SigningKeyExists(keysDir)
-	encryptionKeyExists := EncryptionKeyExists(keysDir)
-	if CertificateExists(keysDir) && (!instanceDataExists || !signingKeyExists || !encryptionKeyExists) {
+	signingKeyExists, err := SigningKeyExists(keysDir)
+	if err != nil {
+		return err
+	}
+	encryptionKeyExists, err := EncryptionKeyExists(keysDir)
+	if err != nil {
+		return err
+	}
+	certificateExists, err := CertificateExists(keysDir)
+	if err != nil {
+		return err
+	}
+
+	if certificateExists && (!instanceDataExists || !signingKeyExists || !encryptionKeyExists) {
 		return fmt.Errorf("certificate exists but identity keys are incomplete")
 	}
 

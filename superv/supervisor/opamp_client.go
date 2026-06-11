@@ -36,7 +36,10 @@ import (
 // createAndStartClient creates a new OpAMP client with current config, sets it up, and starts it.
 // This is used when reconnecting with new or restored connection settings.
 func (s *Supervisor) createAndStartClient(ctx context.Context, settings connection.Settings) (*opamp.Client, error) {
-	headers, headerFunc := s.buildAuthHeaders(settings)
+	headers, headerFunc, err := s.buildAuthHeaders(settings)
+	if err != nil {
+		return nil, fmt.Errorf("building auth header: %w", err)
+	}
 
 	minVersion, maxVersion, err := settings.TLS.ToTLSMinMaxVersion()
 	if err != nil {

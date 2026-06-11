@@ -43,6 +43,13 @@ import (
 	"github.com/Graylog2/collector/superv/persistence"
 )
 
+func isEnrolled(t *testing.T, cb func() (bool, error)) bool {
+	t.Helper()
+	value, err := cb()
+	require.NoError(t, err)
+	return value
+}
+
 func TestManager_GetSigningKeyPath(t *testing.T) {
 	m := NewManager(zaptest.NewLogger(t), ManagerConfig{KeysDir: "/tmp/test-keys"})
 
@@ -64,17 +71,17 @@ func TestManager_IsEnrolled(t *testing.T) {
 	m := NewManager(zaptest.NewLogger(t), ManagerConfig{KeysDir: keysDir})
 
 	// Initially not enrolled
-	require.False(t, m.IsEnrolled())
+	require.False(t, isEnrolled(t, m.IsEnrolled))
 
 	cert := testpki.GenerateTestCert(t)
 
 	require.NoError(t, persistence.SaveSigningKey(keysDir, cert.Key))
 
-	require.False(t, m.IsEnrolled()) // Still missing cert
+	require.False(t, isEnrolled(t, m.IsEnrolled)) // Still missing cert
 
 	require.NoError(t, persistence.SaveCertificate(keysDir, cert.Cert))
 
-	require.True(t, m.IsEnrolled())
+	require.True(t, isEnrolled(t, m.IsEnrolled))
 }
 
 func TestManager_LoadCredentials(t *testing.T) {
@@ -264,7 +271,7 @@ func TestManager_PrepareAndCompleteEnrollment(t *testing.T) {
 
 	// Verify pending state
 	require.True(t, m.HasPendingEnrollment())
-	require.False(t, m.IsEnrolled())
+	require.False(t, isEnrolled(t, m.IsEnrolled))
 
 	// Parse CSR to verify it's valid
 	block, _ := pem.Decode(result.CSRPEM)
@@ -284,7 +291,7 @@ func TestManager_PrepareAndCompleteEnrollment(t *testing.T) {
 
 	// Verify enrollment completed
 	require.False(t, m.HasPendingEnrollment())
-	require.True(t, m.IsEnrolled())
+	require.True(t, isEnrolled(t, m.IsEnrolled))
 	require.NotNil(t, m.Certificate())
 	require.NotEmpty(t, m.CertFingerprint())
 
@@ -342,8 +349,9 @@ func TestManager_CompleteEnrollment_RejectsMismatchedKeyAndCert(t *testing.T) {
 	err := m.CompleteEnrollment(cert.CertPEM)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "signing key does not match certificate public key")
-
-	require.False(t, persistence.CertificateExists(keysDir), "mismatched certificate must not be persisted")
+	certExists, err := persistence.CertificateExists(keysDir)
+	require.NoError(t, err)
+	require.False(t, certExists, "mismatched certificate must not be persisted")
 	require.True(t, m.HasPendingEnrollment(), "pending state should remain after rejection")
 	require.Nil(t, m.Certificate())
 }

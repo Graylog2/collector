@@ -40,8 +40,13 @@ func TestInitIdentity_CreatesAllArtifacts(t *testing.T) {
 	assert.NotEmpty(t, data.InstanceUID)
 	assert.False(t, data.CreatedAt.IsZero())
 
-	assert.True(t, SigningKeyExists(keysDir))
-	assert.True(t, EncryptionKeyExists(keysDir))
+	signingKeyExists, err := SigningKeyExists(keysDir)
+	require.NoError(t, err)
+	assert.True(t, signingKeyExists)
+
+	encryptionKeyExists, err := EncryptionKeyExists(keysDir)
+	require.NoError(t, err)
+	assert.True(t, encryptionKeyExists)
 }
 
 func TestInitIdentity_IdentityFileIsReadOnly(t *testing.T) {
@@ -133,7 +138,9 @@ func TestInitIdentity_RejectsCertificateWithoutSigningKey(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "certificate exists but identity keys are incomplete")
-	assert.False(t, SigningKeyExists(keysDir), "signing key should not be regenerated for an existing certificate")
+	signingKeyExists, err := SigningKeyExists(keysDir)
+	require.NoError(t, err)
+	assert.False(t, signingKeyExists, "signing key should not be regenerated for an existing certificate")
 }
 
 func TestInitIdentity_RejectsCertificateWithoutEncryptionKey(t *testing.T) {
@@ -146,7 +153,9 @@ func TestInitIdentity_RejectsCertificateWithoutEncryptionKey(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "certificate exists but identity keys are incomplete")
-	assert.False(t, EncryptionKeyExists(keysDir), "encryption key should not be regenerated for an existing certificate")
+	encryptionKeyExists, err := EncryptionKeyExists(keysDir)
+	require.NoError(t, err)
+	assert.False(t, encryptionKeyExists, "encryption key should not be regenerated for an existing certificate")
 }
 
 func TestInitIdentity_StatErrorOnIdentity(t *testing.T) {

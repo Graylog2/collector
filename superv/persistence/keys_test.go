@@ -124,26 +124,32 @@ func TestKeysExist(t *testing.T) {
 	dir := t.TempDir()
 	keysDir := filepath.Join(dir, "keys")
 
+	exists := func(t *testing.T, cb func(path string) (bool, error), path string) bool {
+		value, err := cb(path)
+		require.NoError(t, err)
+		return value
+	}
+
 	// Initially no keys exist
-	require.False(t, SigningKeyExists(keysDir))
-	require.False(t, EncryptionKeyExists(keysDir))
-	require.False(t, CertificateExists(keysDir))
+	require.False(t, exists(t, SigningKeyExists, keysDir))
+	require.False(t, exists(t, EncryptionKeyExists, keysDir))
+	require.False(t, exists(t, CertificateExists, keysDir))
 
 	// Create signing key
 	_, priv, _ := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, SaveSigningKey(keysDir, priv))
-	require.True(t, SigningKeyExists(keysDir))
+	require.True(t, exists(t, SigningKeyExists, keysDir))
 
 	// Create encryption key
 	encPriv, err := ecdh.X25519().GenerateKey(rand.Reader)
 	require.NoError(t, err)
 	require.NoError(t, SaveEncryptionKey(keysDir, encPriv.Bytes()))
-	require.True(t, EncryptionKeyExists(keysDir))
+	require.True(t, exists(t, EncryptionKeyExists, keysDir))
 
 	// Create certificate
 	cert := testpki.GenerateTestCert(t)
 	require.NoError(t, SaveCertificate(keysDir, cert.Cert))
-	require.True(t, CertificateExists(keysDir))
+	require.True(t, exists(t, CertificateExists, keysDir))
 }
 
 func TestCertificateFingerprint(t *testing.T) {
