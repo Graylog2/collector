@@ -23,7 +23,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Graylog2/collector-sidecar/superv/identity"
+	"github.com/Graylog2/collector/superv/identity"
 	"github.com/goccy/go-yaml"
 )
 

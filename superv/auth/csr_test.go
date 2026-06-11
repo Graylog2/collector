@@ -22,7 +22,7 @@ import (
 	"crypto/rand"
 	"testing"
 
-	"github.com/Graylog2/collector-sidecar/superv/identity"
+	"github.com/Graylog2/collector/superv/identity"
 	"github.com/stretchr/testify/require"
 )
 

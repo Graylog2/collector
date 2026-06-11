@@ -20,7 +20,7 @@ package persistence
 import (
 	"fmt"
 
-	"github.com/Graylog2/collector-sidecar/superv/identity"
+	"github.com/Graylog2/collector/superv/identity"
 	"go.uber.org/zap"
 )
 
