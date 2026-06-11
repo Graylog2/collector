@@ -102,7 +102,7 @@ func TestInitIdentity_PreservesExistingIdentity(t *testing.T) {
 	assert.True(t, original.CreatedAt.Equal(after.CreatedAt))
 }
 
-func TestInitIdentity_PreservesExistingSigningKey(t *testing.T) {
+func TestInitIdentity_FailsWithExistingSigningKey(t *testing.T) {
 	persistDir, keysDir := t.TempDir(), t.TempDir()
 	logger := zaptest.NewLogger(t)
 
@@ -110,18 +110,10 @@ func TestInitIdentity_PreservesExistingSigningKey(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, SaveSigningKey(keysDir, priv))
 
-	before, err := os.ReadFile(filepath.Join(keysDir, SigningKeyFile))
-	require.NoError(t, err)
-
-	require.NoError(t, InitIdentity(logger, persistDir, keysDir))
-
-	after, err := os.ReadFile(filepath.Join(keysDir, SigningKeyFile))
-	require.NoError(t, err)
-	assert.Equal(t, before, after)
-	assert.True(t, EncryptionKeyExists(keysDir), "encryption key should still be created")
+	require.Error(t, InitIdentity(logger, persistDir, keysDir))
 }
 
-func TestInitIdentity_PreservesExistingEncryptionKey(t *testing.T) {
+func TestInitIdentity_FailsWithExistingEncryptionKey(t *testing.T) {
 	persistDir, keysDir := t.TempDir(), t.TempDir()
 	logger := zaptest.NewLogger(t)
 
@@ -129,15 +121,7 @@ func TestInitIdentity_PreservesExistingEncryptionKey(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, SaveEncryptionKey(keysDir, priv))
 
-	before, err := LoadEncryptionKey(keysDir)
-	require.NoError(t, err)
-
-	require.NoError(t, InitIdentity(logger, persistDir, keysDir))
-
-	after, err := LoadEncryptionKey(keysDir)
-	require.NoError(t, err)
-	assert.Equal(t, before.Bytes(), after.Bytes())
-	assert.True(t, SigningKeyExists(keysDir), "signing key should still be created")
+	require.Error(t, InitIdentity(logger, persistDir, keysDir))
 }
 
 func TestInitIdentity_RejectsCertificateWithoutSigningKey(t *testing.T) {

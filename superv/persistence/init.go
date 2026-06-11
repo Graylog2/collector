@@ -38,6 +38,11 @@ func InitIdentity(logger *zap.Logger, persistenceDir string, keysDir string) err
 	}
 
 	if !instanceDataExists {
+		// A new identity requires new signing and encryption keys as well to avoid reusing
+		// existing keys with a new identity.
+		if signingKeyExists || encryptionKeyExists {
+			return fmt.Errorf("signing and encryption keys exist but no identity data")
+		}
 		data := identity.CreateInstanceData()
 		logger.Debug("Generating instance data", zap.String("instance_uid", data.InstanceUID))
 
