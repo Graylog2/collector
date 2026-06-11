@@ -188,7 +188,13 @@ tasks:
             echo "COLLECTOR_VERSION_SUFFIX="
             echo "COLLECTOR_REVISION={{ .RELEASE_REVISION }}"
           } > version.env.new
+
+      - cmd: |
           mv version.env.new version.env
+
+      - task: version:set:builder
+        vars:
+          VERSION: '{{.RELEASE_VERSION}}'
 
   version:set:snapshot:
     desc: 'Set SNAPSHOT version in version.env'
@@ -205,20 +211,43 @@ tasks:
             echo "COLLECTOR_VERSION_SUFFIX=-SNAPSHOT"
             echo "COLLECTOR_REVISION=1"
           } > version.env.new
+
+      - cmd: |
           mv version.env.new version.env
+
+      - task: version:set:builder
+        vars:
+          VERSION: '{{.SNAPSHOT_VERSION}}-SNAPSHOT'
 
   version:bump:snapshot:patch:
     desc: 'Bump the patch version and set SNAPSHOT suffix in version.env'
+    vars:
+      PATCH: '{{add (.COLLECTOR_VERSION_PATCH | atoi) 1}}'
     cmds:
       - cmd: |
           {
             echo "COLLECTOR_VERSION_MAJOR={{.COLLECTOR_VERSION_MAJOR}}"
             echo "COLLECTOR_VERSION_MINOR={{.COLLECTOR_VERSION_MINOR}}"
-            echo "COLLECTOR_VERSION_PATCH={{ add (.COLLECTOR_VERSION_PATCH | atoi) 1}}"
+            echo "COLLECTOR_VERSION_PATCH={{.PATCH}}"
             echo "COLLECTOR_VERSION_SUFFIX=-SNAPSHOT"
             echo "COLLECTOR_REVISION=1"
           } > version.env.new
+
+      - cmd: |
           mv version.env.new version.env
+
+      - task: version:set:builder
+        vars:
+          VERSION: '{{.COLLECTOR_VERSION_MAJOR}}.{{.COLLECTOR_VERSION_MINOR}}.{{.PATCH}}-SNAPSHOT'
+
+  version:set:builder:
+    desc: 'Set version in builder config'
+    internal: true
+    requires:
+      vars:
+        - VERSION
+    cmd: >
+      sed -i -E -e 's,^  version: .+$,  version: {{.VERSION}},g' builder/builder-config.yaml
 
   version:get:
     desc: 'Bump the patch version and set SNAPSHOT suffix in version.env'
