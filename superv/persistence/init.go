@@ -45,7 +45,7 @@ func InitIdentity(logger *zap.Logger, persistenceDir string, keysDir string) err
 	}
 
 	if certificateExists && (!instanceDataExists || !signingKeyExists || !encryptionKeyExists) {
-		return fmt.Errorf("certificate exists but identity keys are incomplete")
+		return fmt.Errorf("certificate exists but identity keys are incomplete - remove certificate in %s", keysDir)
 	}
 
 	if !instanceDataExists {
