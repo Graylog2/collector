@@ -34,11 +34,11 @@ func GenerateSigningKeypair() (ed25519.PublicKey, ed25519.PrivateKey, error) {
 }
 
 // GenerateEncryptionKeypair generates a new X25519 keypair for encryption.
-func GenerateEncryptionKeypair() ([]byte, []byte, error) {
+func GenerateEncryptionKeypair() (*ecdh.PublicKey, *ecdh.PrivateKey, error) {
 	privateKey, err := ecdh.X25519().GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, nil, fmt.Errorf("generating X25519 keypair: %w", err)
 	}
 
-	return privateKey.PublicKey().Bytes(), privateKey.Bytes(), nil
+	return privateKey.PublicKey(), privateKey, nil
 }

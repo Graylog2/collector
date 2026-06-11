@@ -83,7 +83,7 @@ func InitIdentity(logger *zap.Logger, persistenceDir string, keysDir string) err
 		}
 
 		logger.Debug("Saving encryption key")
-		if err := SaveEncryptionKey(keysDir, encPriv); err != nil {
+		if err := SaveEncryptionKey(keysDir, encPriv.Bytes()); err != nil {
 			return fmt.Errorf("failed to save encryption key: %w", err)
 		}
 	}

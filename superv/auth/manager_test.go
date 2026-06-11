@@ -449,7 +449,7 @@ func TestManager_PrepareRenewal(t *testing.T) {
 	// Generate encryption keypair and save private key
 	encPubExpected, encPriv, err := identity.GenerateEncryptionKeypair()
 	require.NoError(t, err)
-	err = persistence.SaveEncryptionKey(keysDir, encPriv)
+	err = persistence.SaveEncryptionKey(keysDir, encPriv.Bytes())
 	require.NoError(t, err)
 
 	cert := testpki.GenerateTestCert(t, testpki.WithPrivateKey(signingPriv))
@@ -487,7 +487,7 @@ func TestManager_PrepareRenewal(t *testing.T) {
 		}
 	}
 	require.NotNil(t, foundEncPub, "encryption public key extension not found")
-	require.Equal(t, encPubExpected, foundEncPub)
+	require.Equal(t, encPubExpected.Bytes(), foundEncPub)
 }
 
 func TestManager_PrepareRenewal_NotLoaded(t *testing.T) {

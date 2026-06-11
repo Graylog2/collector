@@ -18,7 +18,6 @@
 package identity
 
 import (
-	"crypto/ecdh"
 	"crypto/ed25519"
 	"testing"
 
@@ -39,26 +38,16 @@ func TestGenerateSigningKeypair(t *testing.T) {
 }
 
 func TestGenerateEncryptionKeypair(t *testing.T) {
-	alicePubBytes, alicePrivBytes, err := GenerateEncryptionKeypair()
+	alicePub, alicePriv, err := GenerateEncryptionKeypair()
 	require.NoError(t, err)
-	require.Len(t, alicePubBytes, 32)
-	require.Len(t, alicePrivBytes, 32)
+	require.Len(t, alicePub.Bytes(), 32)
+	require.Len(t, alicePriv.Bytes(), 32)
 
 	// Verify ECDH works
-	bobPubBytes, bobPrivBytes, err := GenerateEncryptionKeypair()
-	require.NoError(t, err)
-
-	alicePriv, err := ecdh.X25519().NewPrivateKey(alicePrivBytes)
-	require.NoError(t, err)
-	alicePub, err := ecdh.X25519().NewPublicKey(alicePubBytes)
+	bobPub, bobPriv, err := GenerateEncryptionKeypair()
 	require.NoError(t, err)
 
 	assert.Equal(t, alicePriv.PublicKey().Bytes(), alicePub.Bytes())
-
-	bobPriv, err := ecdh.X25519().NewPrivateKey(bobPrivBytes)
-	require.NoError(t, err)
-	bobPub, err := ecdh.X25519().NewPublicKey(bobPubBytes)
-	require.NoError(t, err)
 
 	assert.Equal(t, bobPriv.PublicKey().Bytes(), bobPub.Bytes())
 

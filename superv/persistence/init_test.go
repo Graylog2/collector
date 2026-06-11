@@ -124,7 +124,7 @@ func TestInitIdentity_FailsWithExistingEncryptionKey(t *testing.T) {
 
 	_, priv, err := identity.GenerateEncryptionKeypair()
 	require.NoError(t, err)
-	require.NoError(t, SaveEncryptionKey(keysDir, priv))
+	require.NoError(t, SaveEncryptionKey(keysDir, priv.Bytes()))
 
 	require.Error(t, InitIdentity(logger, persistDir, keysDir))
 }
