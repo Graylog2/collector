@@ -20,7 +20,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/logger"
+	"github.com/Graylog2/collector/extension/sidecar/logger"
 )
 
 var log = logger.Log()

@@ -31,11 +31,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/api"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/api/rest"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/cfg"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/cfgfile"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/common"
+	"github.com/Graylog2/collector/extension/sidecar/api"
+	"github.com/Graylog2/collector/extension/sidecar/api/rest"
+	"github.com/Graylog2/collector/extension/sidecar/cfg"
+	"github.com/Graylog2/collector/extension/sidecar/cfgfile"
+	"github.com/Graylog2/collector/extension/sidecar/common"
 )
 
 var flagNum int

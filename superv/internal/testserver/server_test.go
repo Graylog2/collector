@@ -23,7 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/Graylog2/collector-sidecar/superv/auth"
+	"github.com/Graylog2/collector/superv/auth"
 )
 
 func TestServer_JWKS(t *testing.T) {

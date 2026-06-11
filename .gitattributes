@@ -1,0 +1,12 @@
+# Normalize all text files to LF in the working tree on every platform.
+#
+# Without this, Git on Windows (core.autocrlf=true) checks files out with
+# CRLF endings. That breaks tools that are line-ending sensitive — notably
+# addlicense's generated-file detection.
+* text=auto eol=lf
+
+# Binary files must never be normalized.
+*.ico binary
+*.syso binary
+*.png binary
+*.gz binary

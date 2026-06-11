@@ -36,7 +36,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/internal/testserver"
+	"github.com/Graylog2/collector/superv/internal/testserver"
 )
 
 func main() {

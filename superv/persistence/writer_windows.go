@@ -24,7 +24,7 @@ import (
 	"io/fs"
 	"os"
 
-	"github.com/Graylog2/collector-sidecar/superv/persistence/winrenameio"
+	"github.com/Graylog2/collector/superv/persistence/winrenameio"
 )
 
 func newStagedFile(filePath string, data []byte, perm os.FileMode) (StagedFile, error) {

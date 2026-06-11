@@ -16,9 +16,9 @@
 package daemon
 
 import (
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/api/graylog"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/backends"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/helpers"
+	"github.com/Graylog2/collector/extension/sidecar/api/graylog"
+	"github.com/Graylog2/collector/extension/sidecar/backends"
+	"github.com/Graylog2/collector/extension/sidecar/helpers"
 )
 
 func HandleCollectorActions(actions []graylog.ResponseCollectorAction) {

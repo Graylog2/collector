@@ -24,8 +24,8 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
 
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/backends"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/cfg"
+	"github.com/Graylog2/collector/extension/sidecar/backends"
+	"github.com/Graylog2/collector/extension/sidecar/cfg"
 )
 
 const ServiceNamePrefix = "graylog-collector-"

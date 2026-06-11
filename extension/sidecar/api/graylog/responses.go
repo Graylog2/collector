@@ -15,7 +15,7 @@
 
 package graylog
 
-import "github.com/Graylog2/collector-sidecar/extension/sidecar/assignments"
+import "github.com/Graylog2/collector/extension/sidecar/assignments"
 
 type ResponseCollectorRegistration struct {
 	Configuration         ResponseCollectorRegistrationConfiguration `json:"configuration"`

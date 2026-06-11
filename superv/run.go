@@ -23,18 +23,25 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/config"
-	"github.com/Graylog2/collector-sidecar/superv/ownlogs"
-	"github.com/Graylog2/collector-sidecar/superv/persistence"
-	"github.com/Graylog2/collector-sidecar/superv/supervisor"
-	"github.com/Graylog2/collector-sidecar/superv/version"
+	"github.com/Graylog2/collector/superv/config"
+	"github.com/Graylog2/collector/superv/ownlogs"
+	"github.com/Graylog2/collector/superv/persistence"
+	"github.com/Graylog2/collector/superv/supervisor"
+	"github.com/Graylog2/collector/superv/version"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 // Run starts the supervisor and blocks until ctx is cancelled.
 // The caller controls the lifecycle: cancelling ctx triggers graceful shutdown.
-func Run(ctx context.Context, cfg config.Config, events []func(*zap.Logger)) error {
+//
+// If startedCh is non-nil, it is closed once synchronous startup has completed
+// successfully — i.e. after sv.Start returns and before Run blocks waiting for
+// ctx. Startup failures are reported via the returned error; startedCh is left
+// untouched. Callers that need to distinguish "started" from "failed during
+// startup" should select on both startedCh and the channel they use to receive
+// Run's return value.
+func Run(ctx context.Context, cfg config.Config, events []func(*zap.Logger), startedCh chan<- struct{}) error {
 	logger, err := initLogger(cfg.Logging, cfg.Debug)
 	if err != nil {
 		return fmt.Errorf("failed to create logger: %w", err)
@@ -93,6 +100,10 @@ func Run(ctx context.Context, cfg config.Config, events []func(*zap.Logger)) err
 	if err := sv.Start(runCtx); err != nil {
 		logger.Error("Failed to start supervisor", zap.Error(err))
 		return fmt.Errorf("failed to start supervisor: %w", err)
+	}
+
+	if startedCh != nil {
+		close(startedCh)
 	}
 
 	<-ctx.Done()

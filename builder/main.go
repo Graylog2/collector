@@ -18,7 +18,7 @@ func main() {
 	info := component.BuildInfo{
 		Command:     "graylog-collector",
 		Description: "Graylog Collector",
-		Version:     "2.0.0-SNAPSHOT",
+		Version:     "0.1.0-SNAPSHOT",
 	}
 
 	set := otelcol.CollectorSettings{
@@ -34,9 +34,9 @@ func main() {
 			},
 		},
 		ProviderModules: map[string]string{
-			envprovider.NewFactory().Create(confmap.ProviderSettings{}).Scheme():  "go.opentelemetry.io/collector/confmap/provider/envprovider v1.56.0",
-			fileprovider.NewFactory().Create(confmap.ProviderSettings{}).Scheme(): "go.opentelemetry.io/collector/confmap/provider/fileprovider v1.56.0",
-			yamlprovider.NewFactory().Create(confmap.ProviderSettings{}).Scheme(): "go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.56.0",
+			envprovider.NewFactory().Create(confmap.ProviderSettings{}).Scheme():  "go.opentelemetry.io/collector/confmap/provider/envprovider v1.59.0",
+			fileprovider.NewFactory().Create(confmap.ProviderSettings{}).Scheme(): "go.opentelemetry.io/collector/confmap/provider/fileprovider v1.59.0",
+			yamlprovider.NewFactory().Create(confmap.ProviderSettings{}).Scheme(): "go.opentelemetry.io/collector/confmap/provider/yamlprovider v1.59.0",
 		},
 		ConverterModules: []string{},
 	}

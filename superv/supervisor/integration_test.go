@@ -26,15 +26,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/persistence"
 	"github.com/gorilla/websocket"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/Graylog2/collector-sidecar/superv/auth"
-	"github.com/Graylog2/collector-sidecar/superv/internal/testserver"
+	"github.com/Graylog2/collector/superv/auth"
+	"github.com/Graylog2/collector/superv/internal/testserver"
+	"github.com/Graylog2/collector/superv/persistence"
 )
 
 func TestIntegration_Enrollment(t *testing.T) {

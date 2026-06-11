@@ -30,7 +30,7 @@ import (
 	"syscall"
 
 	"github.com/DeRuina/timberjack"
-	"github.com/Graylog2/collector-sidecar/superv/config"
+	"github.com/Graylog2/collector/superv/config"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -183,7 +183,7 @@ func buildConfig(cmd *cobra.Command) (config.Config, []func(logger *zap.Logger),
 		}
 		cfg.Persistence.Dir = filepath.Join(absPath, "supervisor")
 		cfg.Agent.StorageDir = filepath.Join(absPath, "storage")
-		cfg.Agent.Logging.File = filepath.Join(absPath, "supervisor", "logs", "agent.log")
+		cfg.Agent.Logging.File = filepath.Join(absPath, "logs", "agent.log")
 		cfg.Keys.Dir = filepath.Join(absPath, "keys")
 		cfg.Packages.StorageDir = filepath.Join(absPath, "packages")
 		cfg.Logging.Format = "text"
@@ -289,5 +289,5 @@ func runSupervisor(cmd *cobra.Command, _ []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	return Run(ctx, cfg, events)
+	return Run(ctx, cfg, events, nil)
 }

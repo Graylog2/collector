@@ -25,14 +25,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/helpers"
+	"github.com/Graylog2/collector/extension/sidecar/helpers"
 
 	"github.com/flynn-archive/go-shlex"
 
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/backends"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/cfg"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/common"
-	"github.com/Graylog2/collector-sidecar/extension/sidecar/logger"
+	"github.com/Graylog2/collector/extension/sidecar/backends"
+	"github.com/Graylog2/collector/extension/sidecar/cfg"
+	"github.com/Graylog2/collector/extension/sidecar/common"
+	"github.com/Graylog2/collector/extension/sidecar/logger"
 )
 
 type ExecRunner struct {

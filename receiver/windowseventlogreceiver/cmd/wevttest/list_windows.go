@@ -8,7 +8,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/Graylog2/collector-sidecar/receiver/windowseventlogreceiver/internal/windows"
+	"github.com/Graylog2/collector/receiver/windowseventlogreceiver/internal/windows"
 )
 
 func listChannels() error {

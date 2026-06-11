@@ -32,8 +32,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Graylog2/collector-sidecar/superv/config"
-	"github.com/Graylog2/collector-sidecar/superv/persistence"
+	"github.com/Graylog2/collector/superv/config"
+	"github.com/Graylog2/collector/superv/persistence"
 	"go.uber.org/zap"
 )
 

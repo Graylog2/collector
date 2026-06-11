@@ -44,7 +44,8 @@ func TestConfigDefaultsDirectories(t *testing.T) {
 	assert.Equal(t, filepath.Join(`C:\`, "ProgramData", "Graylog", "Collector", "storage"), cfg.Agent.StorageDir)
 	assert.Equal(t, filepath.Join(`C:\`, "ProgramData", "Graylog", "Collector", "keys"), cfg.Keys.Dir)
 	assert.Equal(t, filepath.Join(`C:\`, "ProgramData", "Graylog", "Collector", "packages"), cfg.Packages.StorageDir)
-	assert.Equal(t, filepath.Join(`C:\`, "ProgramData", "Graylog", "Collector", "supervisor", "logs", "supervisor.log"), cfg.Logging.File)
+	assert.Equal(t, filepath.Join(`C:\`, "ProgramData", "Graylog", "Collector", "logs", "supervisor.log"), cfg.Logging.File)
+	assert.Equal(t, filepath.Join(`C:\`, "ProgramData", "Graylog", "Collector", "logs", "agent.log"), cfg.Agent.Logging.File)
 
 	// Regression: these must all be absolute paths.
 	assert.True(t, filepath.IsAbs(cfg.Persistence.Dir))

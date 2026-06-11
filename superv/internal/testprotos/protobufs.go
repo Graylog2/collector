@@ -20,7 +20,7 @@ package testprotos
 import (
 	"testing"
 
-	"github.com/Graylog2/collector-sidecar/superv/internal/testpki"
+	"github.com/Graylog2/collector/superv/internal/testpki"
 	"github.com/open-telemetry/opamp-go/protobufs"
 )
 
