@@ -195,6 +195,7 @@ tasks:
     platforms: [darwin]
     internal: true
     cmds:
+      - cmd: ls {{.ROOT_DIR}}/target/
       - cmd: mkdir -p {{.MACOS_TARGET_PKG_DIR}}
         silent: true
       - cmd: cp -R {{.MACOS_PAYLOAD_PKG_DIR}}/ {{.MACOS_TARGET_PKG_DIR}}
