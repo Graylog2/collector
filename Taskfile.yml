@@ -177,6 +177,8 @@ tasks:
 
   package:macos:pkg:
     desc: "Build macOS pkg installer (macOS only)"
+    vars:
+      VERSION: '{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}'
     deps: [package:macos:pkg:prepare]
     platforms: [darwin]
     cmds:
@@ -185,9 +187,9 @@ tasks:
         --root "{{.MACOS_TARGET_PKG_DIR}}/payload" 
         --scripts "{{.MACOS_TARGET_PKG_DIR}}/scripts" 
         --identifier "com.graylog.collector" 
-        --version "{{.COLLECTOR_VERSION}}" 
+        --version "{{.VERSION}}"
         --install-location "/"  
-        "{{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}.pkg"
+        "{{.ROOT_DIR}}/target/graylog-collector-{{.VERSION}}.pkg"
 
   package:macos:pkg:prepare:
     desc: "Prepare input directory for pkgbuild"
