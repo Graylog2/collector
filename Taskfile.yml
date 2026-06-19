@@ -29,7 +29,7 @@ vars:
     receiver/windowseventlogreceiver
   MACOS_PAYLOAD_PKG_DIR: '{{.ROOT_DIR}}/dist/macos'
   MACOS_TARGET_PKG_DIR: '{{.ROOT_DIR}}/target/macos'
-  MACOS_BINARY_PATH: '{{.ROOT_DIR}}/target/graylog-collector-darwin-arm64'
+  MACOS_BINARY_PATH: '{{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}-darwin-arm64'
 
 includes:
   'receiver:winlog':

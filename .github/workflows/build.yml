@@ -60,7 +60,12 @@ jobs:
           go-version: "1.26"
 
       - name: "Build binaries"
+        if: "matrix.os == 'linux'" # linux builds all platform binaries
         run: "go tool task all"
+
+      - name: "Build platform binaries"
+        if: "matrix.os != 'linux'" # all other platforms only build their binaries instead of everything
+        run: "go tool task build"
 
       - name: "Run tests"
         run: "go tool task test"
