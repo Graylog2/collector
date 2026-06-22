@@ -110,8 +110,7 @@ type Supervisor struct {
 	currentOwnLogs     *ownlogs.Settings
 }
 
-// New creates a new Supervisor instance. The instanceUID must be obtained from
-// [persistence.LoadOrCreateInstanceUID] before calling New.
+// New creates a new Supervisor instance.
 func New(logger *zap.Logger, cfg config.Config, instanceUID string) (*Supervisor, error) {
 	// Create auth manager
 	authMgr := auth.NewManager(logger.Named("auth"), auth.ManagerConfig{
@@ -139,11 +138,13 @@ func New(logger *zap.Logger, cfg config.Config, instanceUID string) (*Supervisor
 			UpdatedAt: time.Now().UTC(),
 		}
 
-		if authMgr.IsEnrolled() {
+		if isEnrolled, err := authMgr.IsEnrolled(); err == nil && isEnrolled {
 			// We should have stored connection settings when enrolled, but in case we don't,
 			// use server config as fallback.
 			connSettings.Endpoint = cfg.Server.Endpoint
 			connSettings.Headers = cfg.Server.Headers
+		} else if err != nil {
+			return nil, fmt.Errorf("checking connection settings: %w", err)
 		} else {
 			if enrollEndpoint := cfg.Server.Auth.EnrollmentEndpoint; enrollEndpoint != "" {
 				endpoint, err := config.DeriveEnrollmentEndpoint(enrollEndpoint)
@@ -464,7 +465,7 @@ func (s *Supervisor) Start(parentCtx context.Context) error {
 				}
 				// Only report health if we're enrolled - during enrollment we want to avoid sending multiple requests
 				// using the enrollment token.
-				if s.authManager.IsEnrolled() { // TODO: Check how expensive IsEnrolled is and if we can cache it after enrollment
+				if isEnrolled, err := s.authManager.IsEnrolled(); err == nil && isEnrolled { // TODO: Check how expensive IsEnrolled is and if we can cache it after enrollment
 					s.mu.RLock()
 					client := s.opampClient
 					s.mu.RUnlock()
@@ -476,6 +477,8 @@ func (s *Supervisor) Start(parentCtx context.Context) error {
 							s.logger.Warn("Failed to report health", zap.Error(err))
 						}
 					}
+				} else if err != nil {
+					s.logger.Warn("Failed to check enrollment status", zap.Error(err))
 				}
 
 			case <-renewalTimer.C:

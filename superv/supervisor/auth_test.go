@@ -42,7 +42,9 @@ func TestBuildAuthHeaders_Enrolled_GeneratesFreshJWTPerCall(t *testing.T) {
 		KeysDir:     keysDir,
 		JWTLifetime: 5 * time.Minute,
 	})
-	require.True(t, authMgr.IsEnrolled())
+	isEnrolled, err := authMgr.IsEnrolled()
+	require.NoError(t, err)
+	require.True(t, isEnrolled)
 	require.NoError(t, authMgr.LoadCredentials())
 
 	s := &Supervisor{
@@ -50,9 +52,10 @@ func TestBuildAuthHeaders_Enrolled_GeneratesFreshJWTPerCall(t *testing.T) {
 		logger:      zaptest.NewLogger(t),
 	}
 
-	headers, headerFunc := s.buildAuthHeaders(connection.Settings{
+	headers, headerFunc, err := s.buildAuthHeaders(connection.Settings{
 		Headers: map[string]string{"X-Custom": "value"},
 	})
+	require.NoError(t, err)
 
 	// Static headers must not contain Authorization.
 	require.Empty(t, headers.Get("Authorization"))
@@ -90,14 +93,17 @@ func TestBuildAuthHeaders_Enrolled_ErrorBranch(t *testing.T) {
 	authMgr := auth.NewManager(zaptest.NewLogger(t), auth.ManagerConfig{
 		KeysDir: keysDir,
 	})
-	require.True(t, authMgr.IsEnrolled())
+	isEnrolled, err := authMgr.IsEnrolled()
+	require.NoError(t, err)
+	require.True(t, isEnrolled)
 
 	s := &Supervisor{
 		authManager: authMgr,
 		logger:      zaptest.NewLogger(t),
 	}
 
-	headers, headerFunc := s.buildAuthHeaders(connection.Settings{})
+	headers, headerFunc, err := s.buildAuthHeaders(connection.Settings{})
+	require.NoError(t, err)
 
 	require.NotNil(t, headerFunc, "HeaderFunc should still be set for enrolled supervisor")
 
@@ -114,16 +120,19 @@ func TestBuildAuthHeaders_NotEnrolled_StaticEnrollmentJWT(t *testing.T) {
 	authMgr := auth.NewManager(zaptest.NewLogger(t), auth.ManagerConfig{
 		KeysDir: keysDir,
 	})
-	require.False(t, authMgr.IsEnrolled())
+	isEnrolled, err := authMgr.IsEnrolled()
+	require.NoError(t, err)
+	require.False(t, isEnrolled)
 
 	s := &Supervisor{
 		authManager: authMgr,
 		logger:      zaptest.NewLogger(t),
 	}
 
-	headers, headerFunc := s.buildAuthHeaders(connection.Settings{
+	headers, headerFunc, err := s.buildAuthHeaders(connection.Settings{
 		Headers: map[string]string{"X-Foo": "bar"},
 	})
+	require.NoError(t, err)
 
 	// Not enrolled and no pending enrollment → no Authorization header.
 	require.Empty(t, headers.Get("Authorization"))
