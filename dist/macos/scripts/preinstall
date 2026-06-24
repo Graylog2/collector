@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+LABEL="com.graylog.collector"
+PLIST="/Library/LaunchDaemons/${LABEL}.plist"
+
+launchctl bootout system "$PLIST" 2>/dev/null || true
+
+exit 0

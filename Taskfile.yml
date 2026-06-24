@@ -27,6 +27,9 @@ vars:
     -f .license.template.otel
     -ignore '**/*.{yml,yaml}'
     receiver/windowseventlogreceiver
+  MACOS_PAYLOAD_PKG_DIR: '{{.ROOT_DIR}}/dist/macos'
+  MACOS_TARGET_PKG_DIR: '{{.ROOT_DIR}}/target/macos'
+  MACOS_BINARY_PATH: '{{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}-darwin-arm64'
 
 includes:
   'receiver:winlog':
@@ -171,6 +174,43 @@ tasks:
     desc: 'Sign Windows MSI'
     cmds:
       - codesigntool sign dist/pkg/graylog-collector-{{.COLLECTOR_VERSION}}.msi
+
+  package:macos:pkg:
+    desc: "Build macOS pkg installer (macOS only)"
+    vars:
+      VERSION: '{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}'
+    deps: [package:macos:pkg:prepare]
+    platforms: [darwin]
+    cmds:
+      - >-
+        pkgbuild 
+        --root "{{.MACOS_TARGET_PKG_DIR}}/payload" 
+        --scripts "{{.MACOS_TARGET_PKG_DIR}}/scripts" 
+        --identifier "com.graylog.collector" 
+        --version "{{.VERSION}}"
+        --install-location "/"  
+        "{{.ROOT_DIR}}/target/graylog-collector-{{.VERSION}}.pkg"
+
+  package:macos:pkg:prepare:
+    desc: "Prepare input directory for pkgbuild"
+    deps: [builder:build:darwin:arm64]
+    platforms: [darwin]
+    internal: true
+    cmds:
+      - cmd: mkdir -p {{.MACOS_TARGET_PKG_DIR}}
+        silent: true
+      - cmd: cp -R {{.MACOS_PAYLOAD_PKG_DIR}}/ {{.MACOS_TARGET_PKG_DIR}}
+        silent: true
+      - cmd: cp {{.MACOS_BINARY_PATH}} {{.MACOS_TARGET_PKG_DIR}}/payload/usr/local/graylog-collector/bin/graylog-collector
+        silent: true
+      # ensure scripts are always executable, the installer would otherwise fail
+      - cmd: chmod +x {{.MACOS_TARGET_PKG_DIR}}/scripts/preinstall {{.MACOS_TARGET_PKG_DIR}}/scripts/postinstall
+        silent: true
+      # ensure bundled payload binaries/scripts are executable on the target
+      - cmd: chmod +x {{.MACOS_TARGET_PKG_DIR}}/payload/usr/local/graylog-collector/bin/uninstall.sh
+        silent: true
+      - cmd: find {{.MACOS_TARGET_PKG_DIR}} -name .gitkeep -delete
+        silent: true
 
   version:set:release:
     desc: 'Set version in version.env'

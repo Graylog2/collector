@@ -34,10 +34,14 @@ import (
 const envPrefix = "GLC_"
 
 func DefaultConfigPaths() []string {
-	if runtime.GOOS == "windows" {
+	switch {
+	case runtime.GOOS == "windows":
 		return []string{filepath.Join(WindowsDataPathPrefix, "config", "supervisor.yaml")}
+	case runtime.GOOS == "darwin":
+		return []string{"/Library/Application Support/Graylog/Collector/supervisor.yaml"}
+	default:
+		return []string{"/etc/graylog/collector/supervisor.yaml", "./supervisor.yaml"}
 	}
-	return []string{"/etc/graylog/collector/supervisor.yaml", "./supervisor.yaml"}
 }
 
 func DefaultSidecarConfigPaths(customPath string) []string {
