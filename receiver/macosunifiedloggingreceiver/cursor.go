@@ -17,7 +17,6 @@ type identity struct {
 type cursor struct {
 	bootUUID   string
 	wallSecond string
-	maxMach    int64
 	seen       map[identity]struct{}
 
 	batchSecond string
@@ -42,7 +41,6 @@ func (c *cursor) consider(e *logEvent) bool {
 	if e.BootUUID != c.bootUUID {
 		c.bootUUID = e.BootUUID
 		c.wallSecond = ""
-		c.maxMach = 0
 		c.seen = map[identity]struct{}{}
 		c.batchSecond = ""
 		c.batchSeen = map[identity]struct{}{}
@@ -68,9 +66,6 @@ func (c *cursor) consider(e *logEvent) bool {
 	case sec == c.batchSecond:
 		c.batchSeen[id] = struct{}{}
 	}
-	if e.MachTimestamp > c.maxMach {
-		c.maxMach = e.MachTimestamp
-	}
 	return emit
 }
 
@@ -86,12 +81,11 @@ func (c *cursor) commit() {
 type cursorState struct {
 	BootUUID   string     `json:"bootUUID"`
 	WallSecond string     `json:"wallSecond"`
-	MaxMach    int64      `json:"maxMach"`
 	Seen       []identity `json:"seen"`
 }
 
 func (c *cursor) marshal() ([]byte, error) {
-	s := cursorState{BootUUID: c.bootUUID, WallSecond: c.wallSecond, MaxMach: c.maxMach}
+	s := cursorState{BootUUID: c.bootUUID, WallSecond: c.wallSecond}
 	for id := range c.seen {
 		s.Seen = append(s.Seen, id)
 	}
@@ -109,7 +103,6 @@ func loadCursor(data []byte) (*cursor, error) {
 	}
 	c.bootUUID = s.BootUUID
 	c.wallSecond = s.WallSecond
-	c.maxMach = s.MaxMach
 	for _, id := range s.Seen {
 		c.seen[id] = struct{}{}
 	}

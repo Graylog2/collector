@@ -17,7 +17,7 @@ import (
 // logBinaryPath is the fixed path to the macOS `log` binary that is execed.
 // It is a var (not a const) solely so in-package tests can override it as a seam;
 // it is never user-configurable.
-var logBinaryPath = "/usr/bin/log"
+const logBinaryPath = "/usr/bin/log"
 
 // execLogRunner runs the real, integrity-verified /usr/bin/log binary.
 type execLogRunner struct {
