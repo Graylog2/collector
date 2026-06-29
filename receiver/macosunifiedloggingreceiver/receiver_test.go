@@ -53,7 +53,11 @@ if [ -n "$FAKE_LOG_OUTPUT_PATH" ] && [ -f "$FAKE_LOG_OUTPUT_PATH" ]; then
 fi
 `
 	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0o755)) //nolint:gosec // script needs to be executable
-	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+	// Inject the fake binary via the package-private seam, not PATH, so the runner
+	// execs exactly this script (matching production's fixed-path behavior).
+	saved := logBinaryPath
+	logBinaryPath = scriptPath
+	t.Cleanup(func() { logBinaryPath = saved })
 }
 
 func writeFakeLogOutput(t *testing.T, lines ...string) string {
