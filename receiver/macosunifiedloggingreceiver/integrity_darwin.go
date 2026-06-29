@@ -21,22 +21,19 @@ const (
 	sfRestricted = 0x80000
 )
 
-// verifyLogBinary checks that path is the genuine, SIP-protected /usr/bin/log.
-// Layer 1 (filesystem/SIP) is REQUIRED and pure-Go. Layer 2 (codesign) is best-effort:
-// it runs only if codesign itself self-verifies, and a missing/untrusted codesign is
-// logged and skipped rather than failing startup.
-func verifyLogBinary(logger *zap.Logger, path string) error {
-	if path != logBinaryPath {
-		return fmt.Errorf("refusing to run unexpected log binary path %q", path)
-	}
-	if err := verifyRestrictedRootFile(path); err != nil {
+// verifyLogBinary checks that the fixed /usr/bin/log is the genuine, SIP-protected
+// binary. Layer 1 (filesystem/SIP) is REQUIRED and pure-Go. Layer 2 (codesign) is
+// best-effort: it runs only if codesign itself self-verifies, and a missing/untrusted
+// codesign is logged and skipped rather than failing startup.
+func verifyLogBinary(logger *zap.Logger) error {
+	if err := verifyRestrictedRootFile(logBinaryPath); err != nil {
 		return fmt.Errorf("filesystem integrity check failed: %w", err)
 	}
 	if err := verifyRestrictedRootFile(codesignPath); err != nil {
 		logger.Warn("codesign not available for signature verification; relying on SIP/filesystem checks", zap.Error(err))
 		return nil
 	}
-	if err := runCodesignVerify(path); err != nil {
+	if err := runCodesignVerify(); err != nil {
 		return fmt.Errorf("code signature verification failed: %w", err)
 	}
 	return nil
@@ -71,10 +68,10 @@ func verifyRestrictedRootFile(path string) error {
 	return nil
 }
 
-func runCodesignVerify(path string) error {
+func runCodesignVerify() error {
 	// -R='...' uses codesign's inline requirement syntax (a bare argument is treated as a file).
 	cmd := exec.Command(codesignPath, "--verify", "--strict",
-		`-R=anchor apple and identifier "com.apple.log"`, path)
+		`-R=anchor apple and identifier "com.apple.log"`, logBinaryPath)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("%w: %s", err, out)
 	}

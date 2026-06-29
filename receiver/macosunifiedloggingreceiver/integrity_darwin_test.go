@@ -26,13 +26,7 @@ func TestVerifyRestrictedRootFile_RejectsNonRestricted(t *testing.T) {
 
 func TestVerifyLogBinary_RealBinaryPasses(t *testing.T) {
 	// The genuine /usr/bin/log on a SIP-enabled Mac must pass both layers.
-	if err := verifyLogBinary(zap.NewNop(), "/usr/bin/log"); err != nil {
+	if err := verifyLogBinary(zap.NewNop()); err != nil {
 		t.Fatalf("genuine /usr/bin/log failed verification: %v", err)
-	}
-}
-
-func TestVerifyLogBinary_RejectsWrongPath(t *testing.T) {
-	if err := verifyLogBinary(zap.NewNop(), "/tmp/log"); err == nil {
-		t.Fatal("expected rejection of a non-/usr/bin/log path")
 	}
 }

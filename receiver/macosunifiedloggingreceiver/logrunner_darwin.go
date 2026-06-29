@@ -20,21 +20,20 @@ const logBinaryPath = "/usr/bin/log"
 
 // execLogRunner runs the real, integrity-verified /usr/bin/log binary.
 type execLogRunner struct {
-	path   string
 	logger *zap.Logger
 }
 
 // newExecLogRunner verifies the integrity of /usr/bin/log and returns a runner.
 // It returns an error (failing receiver startup) if the required integrity checks fail.
 func newExecLogRunner(logger *zap.Logger) (*execLogRunner, error) {
-	if err := verifyLogBinary(logger, logBinaryPath); err != nil {
+	if err := verifyLogBinary(logger); err != nil {
 		return nil, err
 	}
-	return &execLogRunner{path: logBinaryPath, logger: logger}, nil
+	return &execLogRunner{logger: logger}, nil
 }
 
 func (r *execLogRunner) Run(ctx context.Context, args []string) (io.ReadCloser, func() (string, error), error) {
-	cmd := exec.CommandContext(ctx, r.path, args...) // #nosec G204 - path is the fixed, verified /usr/bin/log; args are config-controlled
+	cmd := exec.CommandContext(ctx, logBinaryPath, args...) // #nosec G204 - logBinaryPath is the fixed, verified /usr/bin/log; args are config-controlled
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	stdout, err := cmd.StdoutPipe()
