@@ -26,18 +26,30 @@ supports both live system logs and archived log files (`.logarchive`).
 
 ## Changes from Upstream
 
-- Live mode now maintains a forward cursor with `(machTimestamp, threadID)` dedup, so events
-  are emitted exactly once instead of re-emitting the whole window each poll.
-- Live mode emits structured attributes (`macos.*`) with the human-readable message as the body.
-- Cursor is persisted via the collector storage extension (`storage:` is required in live mode).
-- The `log` binary is invoked at its absolute path `/usr/bin/log` and integrity-verified at startup.
+- Live mode maintains a forward cursor using `(machTimestamp, threadID)` deduplication, so
+  events at the boundary second are emitted exactly once instead of being re-emitted on each
+  poll. The `--start` value is always floored to whole seconds because the `log` command
+  rejects fractional seconds.
+- Live mode always invokes `log show --style ndjson` internally. Each log record's body is
+  set to the human-readable `eventMessage` field; structured `macos.*` attributes are emitted
+  for every other field of interest. The user-visible `format` option applies only in archive
+  mode.
+- The cursor is persisted via a collector storage extension (`storage:` is required in live
+  mode). On restart the cursor is restored and polling resumes from where it left off. A
+  `bootUUID` change (reboot detected mid-stream) resets the cursor automatically.
+- The `log` binary is invoked at its fixed absolute path `/usr/bin/log` and integrity-verified
+  at startup: filesystem ownership and SIP-restriction checks are required; an Apple
+  code-signature check (`codesign --verify`) is performed as a best-effort second layer.
+- A `min_poll_interval` (default `1s`) floors the backoff, preventing a self-feeding tight
+  poll loop that would otherwise be caused by `log show` logging its own invocations.
 
 ## Requirements
 
 - macOS 10.12 (Sierra) or later
-- The `log` command must be available in PATH
+- The `log` command must be available at `/usr/bin/log` (standard macOS location)
 - For archive mode: Read access to the `.logarchive` directory
-- For live mode: Appropriate permissions to read system logs
+- For live mode: Appropriate permissions to read system logs, and a storage extension
+  configured in the collector pipeline
 
 ## Configuration
 
@@ -45,31 +57,47 @@ supports both live system logs and archived log files (`.logarchive`).
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `archive_path` | string | "" | Path or glob pattern to `.logarchive` directory(ies). If empty, reads live system logs. Supports glob patterns (e.g., `*.logarchive`, `**/logs/*.logarchive`) which will match multiple archives |
-| `predicate` | string | "" | Filter predicate (e.g., `"subsystem == 'com.apple.example'"`) |
-| `start_time` | string | "" | Start time in format "2006-01-02 15:04:05" |
-| `end_time` | string | "" | End time in format "2006-01-02 15:04:05" (archive mode only) |
-| `max_poll_interval` | duration | 30s | Maximum interval between polling for new logs (live mode only). Uses exponential backoff starting at 100ms |
-| `max_log_age` | duration | 24h | Maximum age of logs to read on startup (live mode only) |
-| `format` | string | "default" | Output format: `default`, `ndjson`, `json`, `syslog`, or `compact` |
+| `archive_path` | string | `""` | Path or glob pattern to `.logarchive` directory(ies). If empty, reads live system logs. Supports glob patterns (e.g., `*.logarchive`, `**/logs/*.logarchive`) which will match multiple archives. |
+| `predicate` | string | `""` | Filter predicate (e.g., `"subsystem == 'com.apple.example'"`) |
+| `start_time` | string | `""` | Start time in format `"2006-01-02 15:04:05"` |
+| `end_time` | string | `""` | End time in format `"2006-01-02 15:04:05"` (archive mode only) |
+| `storage` | string | — | Component ID of a storage extension used to persist the live-mode cursor (e.g., `file_storage/default`). **Required for live mode.** |
+| `min_poll_interval` | duration | `1s` | Minimum (floor) poll interval in live mode. Kept above 100 ms to avoid a self-feeding poll loop caused by `log show` logging its own invocations. |
+| `max_poll_interval` | duration | `30s` | Maximum interval between polls in live mode. Uses exponential backoff starting from `min_poll_interval`. |
+| `max_log_age` | duration | `24h` | Maximum age of logs to read on startup (live mode only). |
+| `format` | string | `"default"` | Output format passed to `log show` in **archive mode only**: `default`, `ndjson`, `json`, `syslog`, or `compact`. Live mode always uses `ndjson` internally regardless of this setting. |
 
 ### Exponential Backoff Behavior
 
-In live mode, the receiver uses exponential backoff to optimize polling based on log activity:
+In live mode the receiver uses exponential backoff to optimize polling based on log activity:
 
-- **Active Logging**: When logs are actively being written, the receiver polls frequently (starting at 100ms) to minimize latency and catch logs written immediately after the previous poll
-- **Idle Period**: When no logs are found, the polling interval increases exponentially (doubling each time) up to `max_poll_interval`
-- **Automatic Reset**: As soon as logs are detected again, the interval resets to the minimum (100ms)
+- **Active logging**: When new events are emitted, the poll interval resets to `min_poll_interval` (default `1s`).
+- **Idle period**: When no new events are found, the interval doubles on each poll up to `max_poll_interval` (default `30s`).
+- **Automatic reset**: As soon as events are detected again, the interval returns to `min_poll_interval`.
 
-This approach minimizes both latency during active logging and resource usage during idle periods.
+This minimizes both latency during active logging and resource usage during idle periods.
 
 ### Basic Configuration (Live Mode)
 
+Live mode requires a storage extension. A minimal pipeline configuration:
+
 ```yaml
+extensions:
+  file_storage/default:
+    directory: /var/lib/otelcol/storage
+
 receivers:
   macos_unified_logging:
-    max_poll_interval: 30s  # Maximum interval between polls (uses exponential backoff)
-    max_log_age: 24h        # How far back to read on startup
+    storage: file_storage/default   # required for live mode
+    max_poll_interval: 30s
+    max_log_age: 24h
+
+service:
+  extensions: [file_storage/default]
+  pipelines:
+    logs:
+      receivers: [macos_unified_logging]
+      exporters: [...]
 ```
 
 ### Archive Mode (Single Archive)
@@ -101,17 +129,6 @@ receivers:
     predicate: "subsystem == 'com.apple.systempreferences'"
 ```
 
-### With Custom Format
-
-```yaml
-receivers:
-  macos_unified_logging:
-    format: ndjson             # Use structured JSON output
-    max_poll_interval: 30s
-    max_log_age: 24h
-```
-
-
 ## Predicate Examples
 
 Filter by subsystem:
@@ -136,7 +153,7 @@ subsystem == 'com.apple.example' AND messageType IN {'Error', 'Fault'}
 
 For a full description of predicate expressions, run `log help predicates`.
 
-### Security Note
+### Predicate Security
 
 Predicate values are validated to ensure only valid predicate syntax is used. The following are not allowed:
 - Command separators: `;`
@@ -150,37 +167,98 @@ Valid predicate operators like `&&` (logical AND), `<`, `>` (comparison) are all
 
 ## Output Format
 
-The receiver converts macOS logs to OpenTelemetry log records:
+### Live Mode
 
-- **Body**: Contains the entire log line as a string
-- **Attributes**: Not set
+In live mode the receiver always invokes `log show --style ndjson` internally, regardless of the `format` setting. Each ndjson record is mapped to an OTel log record as follows:
 
-### Format Options
+- **Body**: The `eventMessage` field (human-readable message). Falls back to the raw JSON line if `eventMessage` is empty.
+- **Timestamp**: Parsed from the `timestamp` field (format `2006-01-02 15:04:05.000000-0700`).
+- **ObservedTimestamp**: Set to the time the record was processed.
+- **SeverityText / SeverityNumber**: Mapped from `messageType`:
+  - `"Error"` → `Error`
+  - `"Fault"` → `Fatal`
+  - `"Default"`, `"Info"` → `Info`
+  - `"Debug"` → `Debug`
 
-#### `ndjson` and `json` Formats
+**Attributes** — the following `macos.*` attributes are set when the corresponding field is present (string fields are omitted when empty; integer fields are always set):
 
-When using JSON formats, each log line is captured as a complete JSON string in the body, with timestamp and severity extracted:
+| Attribute | Type | Source field |
+|-----------|------|-------------|
+| `macos.subsystem` | string | `subsystem` |
+| `macos.category` | string | `category` |
+| `macos.eventType` | string | `eventType` |
+| `macos.messageType` | string | `messageType` |
+| `macos.processImagePath` | string | `processImagePath` |
+| `macos.processImageUUID` | string | `processImageUUID` |
+| `macos.senderImagePath` | string | `senderImagePath` |
+| `macos.senderImageUUID` | string | `senderImageUUID` |
+| `macos.formatString` | string | `formatString` |
+| `macos.bootUUID` | string | `bootUUID` |
+| `macos.processID` | int | `processID` |
+| `macos.threadID` | int | `threadID` |
+| `macos.machTimestamp` | int | `machTimestamp` |
+| `macos.activityIdentifier` | int | `activityIdentifier` |
+| `macos.parentActivityIdentifier` | int | `parentActivityIdentifier` |
+| `macos.creatorActivityID` | int | `creatorActivityID` |
+| `macos.traceID` | int | `traceID` |
+| `macos.senderProgramCounter` | int | `senderProgramCounter` |
 
-- **Timestamp**: Parsed from the `timestamp` field in the JSON
-- **Severity**: Mapped from `messageType` (Error, Fault, Default, Info, Debug)
+### Live Mode Cursor
 
-#### `default`, `syslog`, and `compact` Formats
+The receiver maintains a **forward cursor** so that each event is delivered exactly once:
 
-When using plain text formats, each log line is captured as plain text in the body:
+1. **`--start` flooring**: The `log show --start` value must be a whole second (the `log`
+   command rejects fractional seconds). The cursor records the wall-clock second of the
+   latest event seen in each poll.
+2. **Boundary-second deduplication**: Because `--start` is inclusive, events at the boundary
+   second are re-fetched on the next poll. The cursor records the `(machTimestamp, threadID)`
+   pair of every event at that boundary second and skips any that were already emitted.
+3. **Persistence**: After each successful poll the cursor is serialized and saved via the
+   storage extension identified by `storage:`. On restart the cursor is loaded from storage
+   and polling continues from the last committed position.
+4. **Reboot detection**: If the `bootUUID` field changes between events, the cursor is
+   reset immediately — `machTimestamp` is monotonic per boot, so values from a previous boot
+   are meaningless as a cursor position.
 
-- **Timestamp**: Set to observed time (when the log was received)
-- **Severity**: Not set
+### Archive Mode
+
+In archive mode the `format` option controls what `log show` outputs:
+
+- **`ndjson` / `json`**: Each log line is parsed as structured JSON. Timestamp and severity
+  are extracted the same way as live mode; `macos.*` attributes are set.
+- **`default` / `syslog` / `compact`**: Each line is captured as plain text in the body.
+  Timestamp is set to the observed time; severity is not set.
+
+No cursor or storage extension is used in archive mode.
+
+## Security
+
+### `/usr/bin/log` Integrity Verification
+
+At startup the receiver verifies that the `log` binary it is about to execute is the genuine Apple-supplied tool:
+
+1. **Path check** (required): Only `/usr/bin/log` is accepted; any other path causes startup to fail.
+2. **Filesystem / SIP check** (required, pure-Go): The file must be a regular (non-symlink) file, owned by `root:wheel`, not group- or world-writable, and marked with the `SF_RESTRICTED` flag (set by System Integrity Protection on the sealed system volume). A planted copy outside the system volume cannot carry this flag.
+3. **Apple code-signature check** (best-effort): If `/usr/bin/codesign` itself passes the SIP check, the receiver runs `codesign --verify --strict` with the inline requirement `anchor apple AND identifier "com.apple.log"`. If `codesign` is not available or does not pass its own SIP check, a warning is logged and startup proceeds relying on the filesystem checks alone.
+
+### Predicate Injection Prevention
+
+See [Predicate Security](#predicate-security) above.
 
 ## Example
 
 Complete example configuration:
 
 ```yaml
+extensions:
+  file_storage/default:
+    directory: /var/lib/otelcol/storage
+
 receivers:
   macos_unified_logging:
-    archive_path: "./system_logs.logarchive"
+    storage: file_storage/default
     predicate: "subsystem BEGINSWITH 'com.apple'"
-    start_time: "2024-01-01 00:00:00"
+    max_log_age: 24h
 
 exporters:
   file:
@@ -188,9 +266,9 @@ exporters:
     format: json
 
 service:
+  extensions: [file_storage/default]
   pipelines:
     logs:
-      receivers: [macosunifiedlogging]
+      receivers: [macos_unified_logging]
       exporters: [file]
 ```
-
