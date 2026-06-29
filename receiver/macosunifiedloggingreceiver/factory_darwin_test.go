@@ -13,6 +13,7 @@ import (
 func TestCreateDefaultConfig(t *testing.T) {
 	expectedCfg := &Config{
 		MaxPollInterval: 30 * time.Second,
+		MinPollInterval: time.Second,
 		MaxLogAge:       24 * time.Hour,
 		Format:          "default",
 	}

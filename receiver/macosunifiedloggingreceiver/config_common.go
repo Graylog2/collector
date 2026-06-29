@@ -5,6 +5,8 @@ package macosunifiedloggingreceiver // import "github.com/Graylog2/collector/rec
 
 import (
 	"time"
+
+	"go.opentelemetry.io/collector/component"
 )
 
 // Config defines configuration for the macOS unified logging receiver
@@ -44,6 +46,15 @@ type Config struct {
 	// Options: "default" (system default), "ndjson", "json", "syslog", "compact"
 	// Default: "default"
 	Format string `mapstructure:"format"`
+
+	// StorageID points to a storage extension used to persist the live-mode cursor.
+	// Required for live mode. Example: storage: file_storage/default
+	StorageID *component.ID `mapstructure:"storage"`
+
+	// MinPollInterval is the floor poll interval under active logging (live mode only).
+	// Default: 1s. Kept above 100ms because `log show` logs its own invocation, which can
+	// otherwise sustain a tight self-feeding poll loop.
+	MinPollInterval time.Duration `mapstructure:"min_poll_interval"`
 
 	// prevent unkeyed literal initialization
 	_ struct{}

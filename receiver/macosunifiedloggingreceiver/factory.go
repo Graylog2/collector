@@ -20,6 +20,7 @@ func createDefaultConfig() component.Config {
 	// Default to live mode
 	return &Config{
 		MaxPollInterval: 30 * time.Second,
+		MinPollInterval: time.Second,
 		MaxLogAge:       24 * time.Hour,
 		Format:          "default",
 	}

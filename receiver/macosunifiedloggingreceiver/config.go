@@ -156,6 +156,13 @@ func (cfg *Config) Validate() error {
 		}
 	}
 
+	if cfg.MinPollInterval < 0 {
+		return errors.New("min_poll_interval must not be negative")
+	}
+	if cfg.MaxPollInterval > 0 && cfg.MinPollInterval > cfg.MaxPollInterval {
+		return fmt.Errorf("min_poll_interval (%s) must not exceed max_poll_interval (%s)", cfg.MinPollInterval, cfg.MaxPollInterval)
+	}
+
 	return nil
 }
 
