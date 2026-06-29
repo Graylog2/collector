@@ -291,22 +291,6 @@ func (r *unifiedLoggingReceiver) processLogLine(ctx context.Context, line []byte
 	return r.consumer.ConsumeLogs(ctx, logs)
 }
 
-// mapMessageTypeToSeverity maps log messageType to OTel severity
-func mapMessageTypeToSeverity(msgType string) plog.SeverityNumber {
-	switch msgType {
-	case "Error":
-		return plog.SeverityNumberError
-	case "Fault":
-		return plog.SeverityNumberFatal
-	case "Default", "Info":
-		return plog.SeverityNumberInfo
-	case "Debug":
-		return plog.SeverityNumberDebug
-	default:
-		return plog.SeverityNumberUnspecified
-	}
-}
-
 // isCompletionLine checks if a line is a completion/status message from the log command
 // These lines should be filtered out (e.g., {"count":540659,"finished":1})
 func isCompletionLine(line []byte) bool {

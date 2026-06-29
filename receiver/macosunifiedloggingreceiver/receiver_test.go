@@ -292,59 +292,6 @@ func TestProcessLogLine(t *testing.T) {
 	})
 }
 
-func TestMapMessageTypeToSeverity(t *testing.T) {
-	tests := []struct {
-		name     string
-		msgType  string
-		expected plog.SeverityNumber
-	}{
-		{
-			name:     "Error message type",
-			msgType:  "Error",
-			expected: plog.SeverityNumberError,
-		},
-		{
-			name:     "Fault message type",
-			msgType:  "Fault",
-			expected: plog.SeverityNumberFatal,
-		},
-		{
-			name:     "Default message type",
-			msgType:  "Default",
-			expected: plog.SeverityNumberInfo,
-		},
-		{
-			name:     "Info message type",
-			msgType:  "Info",
-			expected: plog.SeverityNumberInfo,
-		},
-		{
-			name:     "Debug message type",
-			msgType:  "Debug",
-			expected: plog.SeverityNumberDebug,
-		},
-		{
-			name:     "Unknown message type",
-			msgType:  "Unknown",
-			expected: plog.SeverityNumberUnspecified,
-		},
-		{
-			name:     "Empty message type",
-			msgType:  "",
-			expected: plog.SeverityNumberUnspecified,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := mapMessageTypeToSeverity(tt.msgType)
-			if result != tt.expected {
-				t.Errorf("mapMessageTypeToSeverity(%q) = %v, want %v", tt.msgType, result, tt.expected)
-			}
-		})
-	}
-}
-
 func TestIsCompletionLine(t *testing.T) {
 	tests := []struct {
 		name     string
