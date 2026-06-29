@@ -14,3 +14,7 @@ status:
     active: [Caleb-Hurshman, atoulme]
   distributions: [contrib]
   unsupported_platforms: [linux, windows]
+
+tests:
+  config:
+    archive_path: "testdata"

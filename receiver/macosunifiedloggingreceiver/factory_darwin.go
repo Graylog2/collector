@@ -7,6 +7,7 @@ package macosunifiedloggingreceiver // import "github.com/Graylog2/collector/rec
 
 import (
 	"context"
+	"fmt"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
@@ -33,10 +34,12 @@ func createLogsReceiverDarwin(
 	consumer consumer.Logs,
 ) (receiver.Logs, error) {
 	oCfg := cfg.(*Config)
-
 	if err := oCfg.Validate(); err != nil {
 		return nil, err
 	}
-
-	return newUnifiedLoggingReceiver(oCfg, set.Logger, consumer)
+	runner, err := newExecLogRunner(set.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("log binary integrity check failed: %w", err)
+	}
+	return newUnifiedLoggingReceiver(oCfg, set, consumer, runner), nil
 }
