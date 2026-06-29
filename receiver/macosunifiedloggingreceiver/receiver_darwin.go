@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"sync"
 	"time"
 
@@ -28,18 +27,24 @@ type unifiedLoggingReceiver struct {
 	logger   *zap.Logger
 	consumer consumer.Logs
 	cancel   context.CancelFunc
+	runner   logRunner
 }
 
 func newUnifiedLoggingReceiver(
 	config *Config,
 	logger *zap.Logger,
 	consumer consumer.Logs,
-) *unifiedLoggingReceiver {
+) (*unifiedLoggingReceiver, error) {
+	runner, err := newExecLogRunner(logger)
+	if err != nil {
+		return nil, err
+	}
 	return &unifiedLoggingReceiver{
 		config:   config,
 		logger:   logger,
 		consumer: consumer,
-	}
+		runner:   runner,
+	}, nil
 }
 
 func (r *unifiedLoggingReceiver) Start(ctx context.Context, _ component.Host) error {
@@ -147,23 +152,18 @@ func (r *unifiedLoggingReceiver) runLogCommand(ctx context.Context, archivePath 
 
 	r.logger.Info("Running log command", zap.Strings("args", args))
 
-	// Create the command
-	cmd := exec.CommandContext(ctx, "log", args...) // #nosec G204 - args are controlled by config
-
-	// Get stdout pipe
-	stdout, err := cmd.StdoutPipe()
+	// Start the command via the runner seam
+	stdout, wait, err := r.runner.Run(ctx, args)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get stdout pipe: %w", err)
-	}
-
-	// Start the command
-	if err := cmd.Start(); err != nil {
 		return 0, fmt.Errorf("failed to start log command: %w", err)
 	}
 
 	// Ensure the process is properly cleaned up to avoid zombies
 	defer func() {
-		_ = cmd.Wait()
+		stderrOutput, waitErr := wait()
+		if waitErr != nil && stderrOutput != "" {
+			r.logger.Error("log command exited with error", zap.Error(waitErr), zap.String("stderr", stderrOutput))
+		}
 	}()
 
 	// Read and process output line by line
@@ -179,10 +179,6 @@ func (r *unifiedLoggingReceiver) runLogCommand(ctx context.Context, archivePath 
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
-			err := cmd.Process.Kill()
-			if err != nil {
-				r.logger.Error("Failed to kill log command", zap.Error(err))
-			}
 			return processedCount, ctx.Err()
 		default:
 			line := scanner.Bytes()

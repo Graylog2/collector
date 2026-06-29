@@ -393,7 +393,8 @@ func TestReadFromMultipleArchives(t *testing.T) {
 
 		// Create receiver
 		sink := &consumertest.LogsSink{}
-		receiver := newUnifiedLoggingReceiver(cfg, zap.NewNop(), sink)
+		receiver, err := newUnifiedLoggingReceiver(cfg, zap.NewNop(), sink)
+		require.NoError(t, err)
 		require.NotNil(t, receiver)
 		require.Len(t, receiver.config.resolvedArchivePaths, 2)
 	})
@@ -418,7 +419,8 @@ func TestReadFromMultipleArchives(t *testing.T) {
 
 		// Create receiver
 		sink := &consumertest.LogsSink{}
-		receiver := newUnifiedLoggingReceiver(cfg, zap.NewNop(), sink)
+		receiver, err := newUnifiedLoggingReceiver(cfg, zap.NewNop(), sink)
+		require.NoError(t, err)
 		require.NotNil(t, receiver)
 		require.Len(t, receiver.config.resolvedArchivePaths, 3)
 	})
@@ -441,7 +443,8 @@ func TestReadFromMultipleArchives(t *testing.T) {
 
 		// Create receiver
 		sink := &consumertest.LogsSink{}
-		receiver := newUnifiedLoggingReceiver(cfg, zap.NewNop(), sink)
+		receiver, err := newUnifiedLoggingReceiver(cfg, zap.NewNop(), sink)
+		require.NoError(t, err)
 		require.NotNil(t, receiver)
 		require.Len(t, receiver.config.resolvedArchivePaths, 1)
 	})
@@ -457,7 +460,8 @@ func TestRunLogCommandSkipsHeaderAndCompletionLines(t *testing.T) {
 	t.Setenv("FAKE_LOG_OUTPUT_PATH", outputPath)
 
 	sink := &consumertest.LogsSink{}
-	receiver := newUnifiedLoggingReceiver(&Config{Format: "default"}, zap.NewNop(), sink)
+	receiver, err := newUnifiedLoggingReceiver(&Config{Format: "default"}, zap.NewNop(), sink)
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
@@ -509,7 +513,8 @@ func TestReadFromArchiveProcessesAllResolvedPaths(t *testing.T) {
 	cfg.resolvedArchivePaths = []string{archiveOne, archiveTwo}
 
 	sink := &consumertest.LogsSink{}
-	receiver := newUnifiedLoggingReceiver(cfg, zap.NewNop(), sink)
+	receiver, err := newUnifiedLoggingReceiver(cfg, zap.NewNop(), sink)
+	require.NoError(t, err)
 
 	receiver.readFromArchive(t.Context())
 
@@ -546,7 +551,8 @@ func TestReadFromLiveUsesBackoffLoop(t *testing.T) {
 	}
 
 	sink := &consumertest.LogsSink{}
-	receiver := newUnifiedLoggingReceiver(cfg, zap.NewNop(), sink)
+	receiver, err := newUnifiedLoggingReceiver(cfg, zap.NewNop(), sink)
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
