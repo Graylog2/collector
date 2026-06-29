@@ -19,7 +19,9 @@ func (f *fakeStorageExt) GetClient(context.Context, component.Kind, component.ID
 	return f.client, nil
 }
 
-type fakeHost struct{ exts map[component.ID]component.Component }
+type fakeHost struct {
+	exts map[component.ID]component.Component
+}
 
 func (h fakeHost) GetExtensions() map[component.ID]component.Component { return h.exts }
 

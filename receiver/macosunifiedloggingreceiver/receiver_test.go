@@ -46,8 +46,8 @@ func TestReceiver_EmitsEachEventOnce(t *testing.T) {
 	e1 := `{"timestamp":"2026-06-29 10:00:02.200000+0000","machTimestamp":200,"threadID":2,"bootUUID":"A","eventMessage":"one","messageType":"Default","eventType":"logEvent"}`
 	e2 := `{"timestamp":"2026-06-29 10:00:03.000000+0000","machTimestamp":300,"threadID":3,"bootUUID":"A","eventMessage":"two","messageType":"Default","eventType":"logEvent"}`
 	runner := &fakeRunner{polls: []string{
-		e1 + footer,                // poll 1: emits "one"
-		e1 + "\n" + e2 + footer,   // poll 2: re-fetches "one" (dup) + new "two"
+		e1 + footer,             // poll 1: emits "one"
+		e1 + "\n" + e2 + footer, // poll 2: re-fetches "one" (dup) + new "two"
 	}}
 
 	cfg := createDefaultConfig().(*Config)
