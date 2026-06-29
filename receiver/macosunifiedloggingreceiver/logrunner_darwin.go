@@ -14,9 +14,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// logBinaryPath is the fixed path to the macOS `log` binary that is execed.
-// It is a var (not a const) solely so in-package tests can override it as a seam;
-// it is never user-configurable.
+// logBinaryPath is the fixed, non-configurable path to the macOS `log` binary
+// that is execed. It is integrity-verified before use (see verifyLogBinary).
 const logBinaryPath = "/usr/bin/log"
 
 // execLogRunner runs the real, integrity-verified /usr/bin/log binary.
