@@ -30,18 +30,18 @@ supports both live system logs and archived log files (`.logarchive`).
   events at the boundary second are emitted exactly once instead of being re-emitted on each
   poll. The `--start` value is always floored to whole seconds because the `log` command
   rejects fractional seconds.
-- Live mode always invokes `log show --style ndjson` internally. Each log record's body is
-  set to the human-readable `eventMessage` field; structured `macos.*` attributes are emitted
-  for every other field of interest. The user-visible `format` option applies only in archive
-  mode.
+- The receiver always invokes `log show --style ndjson` internally (both live and archive
+  mode). Each log record's body is set to the human-readable `eventMessage` field; structured
+  `macos.*` attributes are emitted for every other field of interest. The user-visible
+  `format` option is currently inert (reserved; not honored).
 - The cursor is persisted via a collector storage extension (`storage:` is required in live
   mode). On restart the cursor is restored and polling resumes from where it left off. A
   `bootUUID` change (reboot detected mid-stream) resets the cursor automatically.
 - The `log` binary is invoked at its fixed absolute path `/usr/bin/log` and integrity-verified
   at startup: filesystem ownership and SIP-restriction checks are required; an Apple
   code-signature check (`codesign --verify`) is performed as a best-effort second layer.
-- A `min_poll_interval` (default `1s`) floors the backoff, preventing a self-feeding tight
-  poll loop that would otherwise be caused by `log show` logging its own invocations.
+- A `min_poll_interval` (default `1s`) floors the backoff. The `1s` default is chosen to avoid
+  a self-feeding poll loop, since `log show` logs its own invocations.
 
 ## Requirements
 
@@ -62,10 +62,10 @@ supports both live system logs and archived log files (`.logarchive`).
 | `start_time` | string | `""` | Start time in format `"2006-01-02 15:04:05"` |
 | `end_time` | string | `""` | End time in format `"2006-01-02 15:04:05"` (archive mode only) |
 | `storage` | string | — | Component ID of a storage extension used to persist the live-mode cursor (e.g., `file_storage/default`). **Required for live mode.** |
-| `min_poll_interval` | duration | `1s` | Minimum (floor) poll interval in live mode. Kept above 100 ms to avoid a self-feeding poll loop caused by `log show` logging its own invocations. |
+| `min_poll_interval` | duration | `1s` | Minimum (floor) poll interval in live mode. Default `1s`, chosen to avoid a self-feeding poll loop (since `log show` logs its own invocations). |
 | `max_poll_interval` | duration | `30s` | Maximum interval between polls in live mode. Uses exponential backoff starting from `min_poll_interval`. |
 | `max_log_age` | duration | `24h` | Maximum age of logs to read on startup (live mode only). |
-| `format` | string | `"default"` | Output format passed to `log show` in **archive mode only**: `default`, `ndjson`, `json`, `syslog`, or `compact`. Live mode always uses `ndjson` internally regardless of this setting. |
+| `format` | string | `"default"` | **Currently has no effect (reserved).** Accepts `default`, `ndjson`, `json`, `syslog`, or `compact`, but the receiver always reads `ndjson` internally in both live and archive mode, so this option is not honored. |
 
 ### Exponential Backoff Behavior
 
@@ -116,7 +116,6 @@ receivers:
 receivers:
   macos_unified_logging:
     archive_path: "/logs/**/*.logarchive"  # Matches all .logarchive directories recursively
-    format: "ndjson"
 ```
 
 
@@ -222,14 +221,11 @@ The receiver maintains a **forward cursor** so that each event is delivered exac
 
 ### Archive Mode
 
-In archive mode the `format` option controls what `log show` outputs:
-
-- **`ndjson` / `json`**: Each log line is parsed as structured JSON. Timestamp and severity
-  are extracted the same way as live mode; `macos.*` attributes are set.
-- **`default` / `syslog` / `compact`**: Each line is captured as plain text in the body.
-  Timestamp is set to the observed time; severity is not set.
-
-No cursor or storage extension is used in archive mode.
+Archive mode also reads `ndjson` internally (the `format` option has no effect — see above),
+so log records are mapped exactly as in live mode: body from `eventMessage`, timestamp parsed
+from `timestamp`, severity from `messageType`, and the same `macos.*` attributes. The only
+difference is that archive mode is one-shot per resolved `.logarchive` path — no forward
+cursor and no storage extension are used.
 
 ## Security
 
@@ -239,7 +235,7 @@ At startup the receiver verifies that the `log` binary it is about to execute is
 
 1. **Path check** (required): Only `/usr/bin/log` is accepted; any other path causes startup to fail.
 2. **Filesystem / SIP check** (required, pure-Go): The file must be a regular (non-symlink) file, owned by `root:wheel`, not group- or world-writable, and marked with the `SF_RESTRICTED` flag (set by System Integrity Protection on the sealed system volume). A planted copy outside the system volume cannot carry this flag.
-3. **Apple code-signature check** (best-effort): If `/usr/bin/codesign` itself passes the SIP check, the receiver runs `codesign --verify --strict` with the inline requirement `anchor apple AND identifier "com.apple.log"`. If `codesign` is not available or does not pass its own SIP check, a warning is logged and startup proceeds relying on the filesystem checks alone.
+3. **Apple code-signature check** (best-effort): If `/usr/bin/codesign` itself passes the SIP check, the receiver runs `codesign --verify --strict` with the inline requirement `anchor apple and identifier "com.apple.log"`. If `codesign` is not available or does not pass its own SIP check, a warning is logged and startup proceeds relying on the filesystem checks alone.
 
 ### Predicate Injection Prevention
 
