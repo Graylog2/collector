@@ -35,6 +35,12 @@ func (f *fakeRunner) Run(ctx context.Context, _ []string) (io.ReadCloser, func()
 	return io.NopCloser(strings.NewReader(body)), func() (string, error) { return "", nil }, nil
 }
 
+func (f *fakeRunner) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
+}
+
 func TestReceiver_EmitsEachEventOnce(t *testing.T) {
 	footer := "\n" + `{"count":1,"finished":1}`
 	e1 := `{"timestamp":"2026-06-29 10:00:02.200000+0000","machTimestamp":200,"threadID":2,"bootUUID":"A","eventMessage":"one","messageType":"Default","eventType":"logEvent"}`
@@ -61,7 +67,7 @@ func TestReceiver_EmitsEachEventOnce(t *testing.T) {
 	}
 	// Wait until both polls have run, then shut down.
 	deadline := time.Now().Add(2 * time.Second)
-	for runner.calls < 2 && time.Now().Before(deadline) {
+	for runner.callCount() < 2 && time.Now().Before(deadline) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	_ = r.Shutdown(context.Background())

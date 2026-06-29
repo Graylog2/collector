@@ -8,6 +8,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
@@ -33,6 +34,7 @@ type unifiedLoggingReceiver struct {
 	cadence  *cadence
 	storage  storage.Client
 	cancel   context.CancelFunc
+	wg       sync.WaitGroup
 	now      func() time.Time
 }
 
@@ -69,7 +71,11 @@ func (r *unifiedLoggingReceiver) Start(_ context.Context, host component.Host) e
 
 	ctx, cancel := context.WithCancel(context.Background())
 	r.cancel = cancel
-	go r.readLogs(ctx)
+	r.wg.Add(1)
+	go func() {
+		defer r.wg.Done()
+		r.readLogs(ctx)
+	}()
 	return nil
 }
 
@@ -77,6 +83,7 @@ func (r *unifiedLoggingReceiver) Shutdown(ctx context.Context) error {
 	if r.cancel != nil {
 		r.cancel()
 	}
+	r.wg.Wait()
 	if r.storage != nil {
 		return r.storage.Close(ctx)
 	}
