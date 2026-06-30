@@ -157,7 +157,7 @@ func (r *unifiedLoggingReceiver) pollOnce(ctx context.Context) (int, error) {
 		if e == nil {
 			continue
 		}
-		if !r.cursor.consider(e) {
+		if !r.cursor.shouldEmit(e) {
 			continue
 		}
 		e.setLogRecord(records.AppendEmpty(), r.now())

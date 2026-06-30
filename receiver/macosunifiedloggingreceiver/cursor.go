@@ -35,9 +35,9 @@ func (c *cursor) beginPoll() {
 	c.batchSeen = map[identity]struct{}{}
 }
 
-// consider records an event for the in-progress batch and reports whether to emit it.
+// shouldEmit records an event for the in-progress batch and reports whether to emit it.
 // A bootUUID change resets all state (machTimestamp resets across reboots).
-func (c *cursor) consider(e *logEvent) bool {
+func (c *cursor) shouldEmit(e *logEvent) bool {
 	if e.BootUUID != c.bootUUID {
 		c.bootUUID = e.BootUUID
 		c.wallSecond = ""
