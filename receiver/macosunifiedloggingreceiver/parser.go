@@ -26,6 +26,7 @@ type logEvent struct {
 	Subsystem                string `json:"subsystem"`
 	Category                 string `json:"category"`
 	ProcessID                int64  `json:"processID"`
+	UserID                   int64  `json:"userID"`
 	ProcessImagePath         string `json:"processImagePath"`
 	ProcessImageUUID         string `json:"processImageUUID"`
 	SenderImagePath          string `json:"senderImagePath"`
@@ -94,6 +95,7 @@ func (e *logEvent) setLogRecord(lr plog.LogRecord, now time.Time) {
 	putStr(a, "macos.formatString", e.FormatString)
 	putStr(a, "macos.bootUUID", e.BootUUID)
 	a.PutInt("macos.processID", e.ProcessID)
+	a.PutInt("macos.userID", e.UserID)
 	a.PutInt("macos.threadID", e.ThreadID)
 	a.PutInt("macos.machTimestamp", e.MachTimestamp)
 	a.PutInt("macos.activityIdentifier", e.ActivityIdentifier)

@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/plog"
 )
 
-const sampleEvent = `{"timestamp":"2026-06-29 15:54:42.063082+0200","machTimestamp":12868010147176,"threadID":11537025,"bootUUID":"BOOT-A","eventMessage":"hello world","messageType":"Error","eventType":"logEvent","subsystem":"com.apple.bluetooth","category":"Server.LE.Scan","processID":401,"processImagePath":"/usr/sbin/bluetoothd","processImageUUID":"PUUID","senderImagePath":"/usr/sbin/bluetoothd","senderImageUUID":"SUUID","senderProgramCounter":7787736,"activityIdentifier":0,"parentActivityIdentifier":0,"creatorActivityID":0,"traceID":45473881108119556,"formatString":"fmt %@"}`
+const sampleEvent = `{"timestamp":"2026-06-29 15:54:42.063082+0200","machTimestamp":12868010147176,"threadID":11537025,"bootUUID":"BOOT-A","eventMessage":"hello world","messageType":"Error","eventType":"logEvent","subsystem":"com.apple.bluetooth","category":"Server.LE.Scan","processID":401,"userID":205,"processImagePath":"/usr/sbin/bluetoothd","processImageUUID":"PUUID","senderImagePath":"/usr/sbin/bluetoothd","senderImageUUID":"SUUID","senderProgramCounter":7787736,"activityIdentifier":0,"parentActivityIdentifier":0,"creatorActivityID":0,"traceID":45473881108119556,"formatString":"fmt %@"}`
 
 func TestParseLogEvent_SkipsNonEvents(t *testing.T) {
 	for _, line := range []string{
@@ -62,6 +62,9 @@ func TestSetLogRecord(t *testing.T) {
 	}
 	if v, ok := attrs.Get("macos.processID"); !ok || v.Int() != 401 {
 		t.Errorf("macos.processID missing/wrong")
+	}
+	if v, ok := attrs.Get("macos.userID"); !ok || v.Int() != 205 {
+		t.Errorf("macos.userID missing/wrong")
 	}
 	if v, ok := attrs.Get("macos.machTimestamp"); !ok || v.Int() != 12868010147176 {
 		t.Errorf("macos.machTimestamp missing/wrong")
