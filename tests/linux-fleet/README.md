@@ -1,6 +1,8 @@
 Fleet Environment
 =================
 
+**NOTE:** This probably only works correctly when running on Linux
+
 This Docker Compose project starts a few Collector instances on different
 Linux operating systems.
 
@@ -12,7 +14,7 @@ Linux operating systems.
 1. Check that your local firewall allows connections from the container
    network to port `9000` to the container network gateway IP address.
 
-## Run (on Linux)
+## Run
 
 1. Build the Collector via `go tool task build` in the repository root.
 1. Start the compose environment via `docker compose up -d`.
