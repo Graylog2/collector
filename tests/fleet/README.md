@@ -11,3 +11,8 @@ Linux operating systems.
    to ensure that the Collector containers can reach the API.
 1. Check that your local firewall allows connections from the container
    network to port `9000` to the container network gateway IP address.
+
+## Run (on Linux)
+
+1. Build the Collector via `go tool task build` in the repository root.
+1. Start the compose environment via `docker compose up -d`.
