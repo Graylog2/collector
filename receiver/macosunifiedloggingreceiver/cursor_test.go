@@ -15,11 +15,13 @@ func TestCursor_DedupAcrossPolls(t *testing.T) {
 	c := newCursor("")
 
 	c.beginPoll()
-	got1 := []bool{
-		c.shouldEmit(ev(100, 1, "A", "2026-06-29 10:00:01.100000+0000")),
-		c.shouldEmit(ev(200, 2, "A", "2026-06-29 10:00:02.200000+0000")),
-		c.shouldEmit(ev(300, 3, "A", "2026-06-29 10:00:02.900000+0000")),
+	p1 := []*logEvent{
+		ev(100, 1, "A", "2026-06-29 10:00:01.100000+0000"),
+		ev(200, 2, "A", "2026-06-29 10:00:02.200000+0000"),
+		ev(300, 3, "A", "2026-06-29 10:00:02.900000+0000"),
 	}
+	got1 := []bool{c.shouldEmit(p1[0]), c.shouldEmit(p1[1]), c.shouldEmit(p1[2])}
+	c.recordDelivered(p1)
 	c.commit()
 	for i, e := range got1 {
 		if !e {
@@ -34,7 +36,9 @@ func TestCursor_DedupAcrossPolls(t *testing.T) {
 	c.beginPoll()
 	reDup1 := c.shouldEmit(ev(200, 2, "A", "2026-06-29 10:00:02.200000+0000")) // dup
 	reDup2 := c.shouldEmit(ev(300, 3, "A", "2026-06-29 10:00:02.900000+0000")) // dup
-	fresh := c.shouldEmit(ev(400, 4, "A", "2026-06-29 10:00:03.000000+0000"))  // new
+	e3 := ev(400, 4, "A", "2026-06-29 10:00:03.000000+0000")
+	fresh := c.shouldEmit(e3) // new
+	c.recordDelivered([]*logEvent{e3})
 	c.commit()
 	if reDup1 || reDup2 {
 		t.Errorf("boundary-second events must be deduped, got %v/%v", reDup1, reDup2)
@@ -50,11 +54,15 @@ func TestCursor_DedupAcrossPolls(t *testing.T) {
 func TestCursor_RebootResets(t *testing.T) {
 	c := newCursor("")
 	c.beginPoll()
-	c.shouldEmit(ev(900, 1, "A", "2026-06-29 10:00:09.000000+0000"))
+	e1 := ev(900, 1, "A", "2026-06-29 10:00:09.000000+0000")
+	c.shouldEmit(e1)
+	c.recordDelivered([]*logEvent{e1})
 	c.commit()
 	// New boot: machTimestamp resets low; must NOT be treated as an old dup.
 	c.beginPoll()
-	emit := c.shouldEmit(ev(5, 1, "B", "2026-06-29 11:00:00.000000+0000"))
+	e2 := ev(5, 1, "B", "2026-06-29 11:00:00.000000+0000")
+	emit := c.shouldEmit(e2)
+	c.recordDelivered([]*logEvent{e2})
 	c.commit()
 	if !emit {
 		t.Errorf("post-reboot event must emit")
@@ -67,7 +75,9 @@ func TestCursor_RebootResets(t *testing.T) {
 func TestCursor_IdlePollKeepsCursor(t *testing.T) {
 	c := newCursor("")
 	c.beginPoll()
-	c.shouldEmit(ev(100, 1, "A", "2026-06-29 10:00:01.000000+0000"))
+	e1 := ev(100, 1, "A", "2026-06-29 10:00:01.000000+0000")
+	c.shouldEmit(e1)
+	c.recordDelivered([]*logEvent{e1})
 	c.commit()
 	before := c.startArg()
 	c.beginPoll() // no events
@@ -80,8 +90,13 @@ func TestCursor_IdlePollKeepsCursor(t *testing.T) {
 func TestCursor_RoundTrip(t *testing.T) {
 	c := newCursor(predicateHash(`process == "corecaptured"`))
 	c.beginPoll()
-	c.shouldEmit(ev(100, 1, "A", "2026-06-29 10:00:01.000000+0000"))
-	c.shouldEmit(ev(150, 2, "A", "2026-06-29 10:00:01.500000+0000"))
+	p := []*logEvent{
+		ev(100, 1, "A", "2026-06-29 10:00:01.000000+0000"),
+		ev(150, 2, "A", "2026-06-29 10:00:01.500000+0000"),
+	}
+	c.shouldEmit(p[0])
+	c.shouldEmit(p[1])
+	c.recordDelivered(p)
 	c.commit()
 	data, err := c.marshal()
 	if err != nil {

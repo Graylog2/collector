@@ -51,38 +51,47 @@ func (c *cursor) beginPoll() {
 	c.batchSeen = map[identity]struct{}{}
 }
 
-// shouldEmit records an event for the in-progress batch and reports whether to emit it.
-// A bootUUID change resets all state (machTimestamp resets across reboots).
+// shouldEmit reports whether e should be emitted, without mutating any cursor state. It
+// returns false only when e duplicates an already-committed event at the committed boundary
+// second. Dedup applies within a single boot: a bootUUID change means machTimestamp reset,
+// so the committed identities no longer describe the same events. Batch progress is recorded
+// separately by recordDelivered — only after the event is actually delivered — so the cursor
+// never advances past records a consumer rejected.
 func (c *cursor) shouldEmit(e *logEvent) bool {
 	if e.BootUUID != c.bootUUID {
-		c.bootUUID = e.BootUUID
-		c.wallSecond = ""
-		c.seen = map[identity]struct{}{}
-		c.batchSecond = ""
-		c.batchSeen = map[identity]struct{}{}
+		return true
 	}
+	if e.wallSecond() != c.wallSecond {
+		return true
+	}
+	_, dup := c.seen[identity{Mach: e.MachTimestamp, Thread: e.ThreadID}]
+	return !dup
+}
 
-	sec := e.wallSecond()
-	id := identity{Mach: e.MachTimestamp, Thread: e.ThreadID}
-
-	emit := true
-	if sec == c.wallSecond {
-		if _, dup := c.seen[id]; dup {
-			emit = false
+// recordDelivered folds a batch of successfully-delivered events into the in-progress batch
+// cursor. Called only after ConsumeLogs accepted the events, so batchSecond never advances
+// past data that was not delivered. A bootUUID change resets state (machTimestamp resets
+// across reboots). Because --start floors to wallSecond, every returned event has
+// sec >= wallSecond, so batchSecond is monotonic and never moves the cursor backward.
+func (c *cursor) recordDelivered(events []*logEvent) {
+	for _, e := range events {
+		if e.BootUUID != c.bootUUID {
+			c.bootUUID = e.BootUUID
+			c.wallSecond = ""
+			c.seen = map[identity]struct{}{}
+			c.batchSecond = ""
+			c.batchSeen = map[identity]struct{}{}
+		}
+		sec := e.wallSecond()
+		id := identity{Mach: e.MachTimestamp, Thread: e.ThreadID}
+		switch {
+		case sec > c.batchSecond:
+			c.batchSecond = sec
+			c.batchSeen = map[identity]struct{}{id: {}}
+		case sec == c.batchSecond:
+			c.batchSeen[id] = struct{}{}
 		}
 	}
-
-	// Track the batch's max second and the identities within it. Because --start floors
-	// to wallSecond, every returned event has sec >= wallSecond, so batchSecond is
-	// monotonic and never moves the cursor backward.
-	switch {
-	case sec > c.batchSecond:
-		c.batchSecond = sec
-		c.batchSeen = map[identity]struct{}{id: {}}
-	case sec == c.batchSecond:
-		c.batchSeen[id] = struct{}{}
-	}
-	return emit
 }
 
 // commit folds the in-progress batch into the committed cursor. An empty batch (idle
