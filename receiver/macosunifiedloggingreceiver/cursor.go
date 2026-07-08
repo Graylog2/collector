@@ -3,7 +3,22 @@
 
 package macosunifiedloggingreceiver
 
-import "encoding/json"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+)
+
+// predicateHash is the identity a persisted cursor is valid for. If the configured
+// predicate changes, wallSecond/seen no longer describe the same event stream (a broader
+// predicate would match past events before wallSecond that we'd otherwise skip forever),
+// so a hash mismatch forces a fresh start. This is conservative: narrowing the predicate
+// is actually safe to resume, but a hash only reports "changed", not "broader vs narrower",
+// so every change resets. Distinguishing the two would need semantic predicate comparison.
+func predicateHash(predicate string) string {
+	sum := sha256.Sum256([]byte(predicate))
+	return hex.EncodeToString(sum[:])
+}
 
 type identity struct {
 	Mach   int64 `json:"m"`
@@ -15,16 +30,17 @@ type identity struct {
 // seen holds the (machTimestamp, threadID) identities at wallSecond so the re-fetched
 // boundary second is deduped. batch* accumulate the in-progress poll's new boundary.
 type cursor struct {
-	bootUUID   string
-	wallSecond string
-	seen       map[identity]struct{}
+	bootUUID      string
+	wallSecond    string
+	seen          map[identity]struct{}
+	predicateHash string
 
 	batchSecond string
 	batchSeen   map[identity]struct{}
 }
 
-func newCursor() *cursor {
-	return &cursor{seen: map[identity]struct{}{}, batchSeen: map[identity]struct{}{}}
+func newCursor(predicateHash string) *cursor {
+	return &cursor{seen: map[identity]struct{}{}, batchSeen: map[identity]struct{}{}, predicateHash: predicateHash}
 }
 
 // startArg is the --start value for the next poll ("" until the first commit).
@@ -79,28 +95,29 @@ func (c *cursor) commit() {
 }
 
 type cursorState struct {
-	BootUUID   string     `json:"bootUUID"`
-	WallSecond string     `json:"wallSecond"`
-	Seen       []identity `json:"seen"`
+	BootUUID      string     `json:"bootUUID"`
+	WallSecond    string     `json:"wallSecond"`
+	Seen          []identity `json:"seen"`
+	PredicateHash string     `json:"predicateHash"`
 }
 
 func (c *cursor) marshal() ([]byte, error) {
-	s := cursorState{BootUUID: c.bootUUID, WallSecond: c.wallSecond}
+	s := cursorState{BootUUID: c.bootUUID, WallSecond: c.wallSecond, PredicateHash: c.predicateHash}
 	for id := range c.seen {
 		s.Seen = append(s.Seen, id)
 	}
 	return json.Marshal(s)
 }
 
+// loadCursor deserializes a persisted cursor, carrying whatever predicateHash was
+// written. It does not judge validity: the caller compares the returned predicateHash
+// against the current config's hash and decides whether to adopt or discard it.
 func loadCursor(data []byte) (*cursor, error) {
-	c := newCursor()
-	if len(data) == 0 {
-		return c, nil
-	}
 	var s cursorState
 	if err := json.Unmarshal(data, &s); err != nil {
 		return nil, err
 	}
+	c := newCursor(s.PredicateHash)
 	c.bootUUID = s.BootUUID
 	c.wallSecond = s.WallSecond
 	for _, id := range s.Seen {

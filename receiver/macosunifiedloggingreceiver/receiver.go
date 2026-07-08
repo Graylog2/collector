@@ -47,7 +47,7 @@ func newUnifiedLoggingReceiver(cfg *Config, set receiver.Settings, consumer cons
 		logger:   set.Logger,
 		consumer: consumer,
 		runner:   runner,
-		cursor:   newCursor(),
+		cursor:   newCursor(predicateHash(cfg.Predicate)),
 		cadence:  newCadence(minI, maxI),
 		now:      time.Now,
 	}
@@ -61,10 +61,14 @@ func (r *unifiedLoggingReceiver) Start(_ context.Context, host component.Host) e
 		}
 		r.storage = client
 		if data, err := client.Get(context.Background(), cursorStorageKey); err == nil && len(data) > 0 {
-			if c, lerr := loadCursor(data); lerr == nil {
-				r.cursor = c
-			} else {
+			switch c, lerr := loadCursor(data); {
+			case lerr != nil:
 				r.logger.Warn("could not load persisted cursor; starting fresh", zap.Error(lerr))
+			case c.predicateHash != r.cursor.predicateHash:
+				r.logger.Info("predicate changed since last run; discarding persisted cursor and starting fresh",
+					zap.String("persisted", c.predicateHash), zap.String("current", r.cursor.predicateHash))
+			default:
+				r.cursor = c
 			}
 		}
 	}

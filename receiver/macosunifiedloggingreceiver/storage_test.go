@@ -5,11 +5,59 @@ package macosunifiedloggingreceiver
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension/xextension/storage"
 )
+
+// memStorage is an in-memory storage.Client for tests. Unlike storage.NewNopClient it
+// actually retains values, so a cursor can be pre-seeded and then read back by Start.
+type memStorage struct {
+	mu sync.Mutex
+	m  map[string][]byte
+}
+
+func newMemStorage() *memStorage { return &memStorage{m: map[string][]byte{}} }
+
+func (s *memStorage) Get(_ context.Context, key string) ([]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.m[key], nil
+}
+
+func (s *memStorage) Set(_ context.Context, key string, value []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.m[key] = value
+	return nil
+}
+
+func (s *memStorage) Delete(_ context.Context, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.m, key)
+	return nil
+}
+
+func (s *memStorage) Batch(_ context.Context, ops ...*storage.Operation) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, op := range ops {
+		switch op.Type {
+		case storage.Get:
+			op.Value = s.m[op.Key]
+		case storage.Set:
+			s.m[op.Key] = op.Value
+		case storage.Delete:
+			delete(s.m, op.Key)
+		}
+	}
+	return nil
+}
+
+func (s *memStorage) Close(context.Context) error { return nil }
 
 type fakeStorageExt struct{ client storage.Client }
 

@@ -12,7 +12,7 @@ func ev(mach, thread int64, boot, ts string) *logEvent {
 // One poll covering two seconds; commit; second poll re-fetches the boundary second
 // (whole-second --start overlap) and must NOT re-emit those events.
 func TestCursor_DedupAcrossPolls(t *testing.T) {
-	c := newCursor()
+	c := newCursor("")
 
 	c.beginPoll()
 	got1 := []bool{
@@ -48,7 +48,7 @@ func TestCursor_DedupAcrossPolls(t *testing.T) {
 }
 
 func TestCursor_RebootResets(t *testing.T) {
-	c := newCursor()
+	c := newCursor("")
 	c.beginPoll()
 	c.shouldEmit(ev(900, 1, "A", "2026-06-29 10:00:09.000000+0000"))
 	c.commit()
@@ -65,7 +65,7 @@ func TestCursor_RebootResets(t *testing.T) {
 }
 
 func TestCursor_IdlePollKeepsCursor(t *testing.T) {
-	c := newCursor()
+	c := newCursor("")
 	c.beginPoll()
 	c.shouldEmit(ev(100, 1, "A", "2026-06-29 10:00:01.000000+0000"))
 	c.commit()
@@ -78,7 +78,7 @@ func TestCursor_IdlePollKeepsCursor(t *testing.T) {
 }
 
 func TestCursor_RoundTrip(t *testing.T) {
-	c := newCursor()
+	c := newCursor(predicateHash(`process == "corecaptured"`))
 	c.beginPoll()
 	c.shouldEmit(ev(100, 1, "A", "2026-06-29 10:00:01.000000+0000"))
 	c.shouldEmit(ev(150, 2, "A", "2026-06-29 10:00:01.500000+0000"))
@@ -91,8 +91,12 @@ func TestCursor_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	if loaded.predicateHash != c.predicateHash {
+		t.Error("predicateHash mismatch after round-trip")
+	}
 	if loaded.startArg() != c.startArg() {
-		t.Errorf("startArg mismatch after round-trip")
+		t.Error("startArg mismatch after round-trip")
 	}
 	// The restored boundary-second identities still dedupe.
 	loaded.beginPoll()
