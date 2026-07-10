@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PLIST="/Library/LaunchDaemons/com.graylog.collector.plist"
+LABEL="com.graylog.collector"
+
+chown root:wheel "$PLIST"
+chmod 644 "$PLIST"
+
+mkdir -p "/Library/Application Support/Graylog/Collector"
+chmod 755 "/Library/Application Support/Graylog"
+chmod 755 "/Library/Application Support/Graylog/Collector"
+
+launchctl bootout system "$PLIST" 2>/dev/null || true
+launchctl bootstrap system "$PLIST"
+launchctl enable "system/$LABEL"
+launchctl kickstart -k "system/$LABEL"
+
+exit 0

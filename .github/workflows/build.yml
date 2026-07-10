@@ -38,9 +38,15 @@ jobs:
 
     strategy:
       matrix:
-        os: ["linux", "windows"]
+        include:
+          - os: "linux"
+            runner: "ubuntu-latest"
+          - os: "windows"
+            runner: "runs-on=${{ github.run_id }}/runner=windows25-4-core"
+          - os: "macos"
+            runner: "macos-latest"
 
-    runs-on: "${{ case(matrix.os == 'windows', format('runs-on={0}/runner=windows25-4-core', github.run_id), 'ubuntu-latest') }}"
+    runs-on: "${{ matrix.runner }}"
 
     steps:
       - name: "Checkout repository"
@@ -89,6 +95,10 @@ jobs:
         if: "matrix.os == 'windows'"
         run: "go tool task package:windows:msi" # TODO: Add code signing!
 
+      - name: "Build macOS packages"
+        if: "matrix.os == 'macos'"
+        run: "go tool task package:macos:pkg" # TODO: Add code signing!
+
       - name: "Upload build artifacts to S3"
         # Dependabot doesn't have access to the S3 secrets.
         if: "github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]')"
@@ -101,7 +111,17 @@ jobs:
         run: |
           printf -- "## Artifacts - ${{ matrix.os }}\n\n" >> "$GITHUB_STEP_SUMMARY"
 
-          for file in $(find . -maxdepth 1 -name 'graylog-collector*' -type f | grep ${{ case(matrix.os == 'windows', '', '-v') }} -e '\.exe$' -e '\.msi$' | sort -V); do
+          # Select which artifacts to publish per OS. Linux (the default) is the
+          # catch-all: every cross-compiled binary plus its .deb/.rpm packages.
+          # Windows and macOS publish only their own installer(s) — the binaries
+          # are already uploaded by the Linux job.
+          case "${{ matrix.os }}" in
+            windows) grep_args=(-e '\.exe$' -e '\.msi$') ;;
+            macos)   grep_args=(-e '\.pkg$') ;;
+            *)       grep_args=(-v -e '\.exe$' -e '\.msi$') ;;
+          esac
+
+          for file in $(find . -maxdepth 1 -name 'graylog-collector*' -type f | grep "${grep_args[@]}" | sort -V); do
             aws s3 cp --no-progress "$file" "s3://${AWS_S3_BUCKET}/collector/${SNAPSHOT_PATH}/"
             printf -- "- https://downloads.graylog.org/snapshots/collector/%s/%s\n" "$SNAPSHOT_PATH" "$(basename "$file")" >> "$GITHUB_STEP_SUMMARY"
           done
