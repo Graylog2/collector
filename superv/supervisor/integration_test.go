@@ -54,6 +54,8 @@ func TestIntegration_Enrollment(t *testing.T) {
 	keysDir := filepath.Join(dir, "keys")
 	logger := zaptest.NewLogger(t)
 
+	require.NoError(t, persistence.InitIdentity(logger, dir, keysDir))
+
 	// Create auth manager with test server's HTTP client
 	authMgr := auth.NewManager(logger.Named("auth"), auth.ManagerConfig{
 		KeysDir:     keysDir,
@@ -62,10 +64,14 @@ func TestIntegration_Enrollment(t *testing.T) {
 	})
 
 	// Verify not enrolled initially
-	require.False(t, authMgr.IsEnrolled())
+	{
+		isEnrolled, err := authMgr.IsEnrolled()
+		require.NoError(t, err)
+		require.False(t, isEnrolled)
+	}
 
 	// Load instance UID
-	instanceUID, err := persistence.LoadOrCreateInstanceUID(dir)
+	instanceUID, err := persistence.LoadInstanceUID(dir)
 	require.NoError(t, err)
 
 	// Phase 1: Prepare enrollment (validates JWT, generates keys, creates CSR)
@@ -75,7 +81,11 @@ func TestIntegration_Enrollment(t *testing.T) {
 
 	// Verify pending state
 	require.True(t, authMgr.HasPendingEnrollment())
-	require.False(t, authMgr.IsEnrolled())
+	{
+		isEnrolled, err := authMgr.IsEnrolled()
+		require.NoError(t, err)
+		require.False(t, isEnrolled)
+	}
 
 	// Phase 2: Send CSR via OpAMP WebSocket and receive certificate
 	certPEM := sendCSRViaOpAMP(t, serverURL, instanceUID, result.CSRPEM)
@@ -86,8 +96,12 @@ func TestIntegration_Enrollment(t *testing.T) {
 
 	// Verify enrolled
 	require.False(t, authMgr.HasPendingEnrollment())
-	require.True(t, authMgr.IsEnrolled())
-	require.NotEmpty(t, authMgr.CertFingerprint())
+	{
+		isEnrolled, err := authMgr.IsEnrolled()
+		require.NoError(t, err)
+		require.True(t, isEnrolled)
+		require.NotEmpty(t, authMgr.CertFingerprint())
+	}
 
 	// Verify we can generate a JWT
 	jwt, err := authMgr.GenerateJWT()
@@ -117,13 +131,15 @@ func TestIntegration_EnrollmentPersistence(t *testing.T) {
 	keysDir := filepath.Join(dir, "keys")
 	logger := zaptest.NewLogger(t)
 
+	require.NoError(t, persistence.InitIdentity(logger, dir, keysDir))
+
 	// First: prepare and complete enrollment
 	authMgr1 := auth.NewManager(logger.Named("auth1"), auth.ManagerConfig{
 		KeysDir:    keysDir,
 		HTTPClient: server.Client(),
 	})
 
-	instanceUID, _ := persistence.LoadOrCreateInstanceUID(dir)
+	instanceUID, _ := persistence.LoadInstanceUID(dir)
 
 	// Prepare enrollment
 	result, err := authMgr1.PrepareEnrollment(context.Background(), server.URL(), enrollmentToken, instanceUID)
@@ -143,7 +159,9 @@ func TestIntegration_EnrollmentPersistence(t *testing.T) {
 		KeysDir: keysDir,
 	})
 
-	require.True(t, authMgr2.IsEnrolled())
+	isEnrolled, err := authMgr2.IsEnrolled()
+	require.NoError(t, err)
+	require.True(t, isEnrolled)
 
 	err = authMgr2.LoadCredentials()
 	require.NoError(t, err)
@@ -173,6 +191,8 @@ func TestIntegration_JWTExpiry(t *testing.T) {
 	keysDir := filepath.Join(dir, "keys")
 	logger := zaptest.NewLogger(t)
 
+	require.NoError(t, persistence.InitIdentity(logger, dir, keysDir))
+
 	// Create manager with very short JWT lifetime (2 seconds)
 	authMgr := auth.NewManager(logger.Named("auth"), auth.ManagerConfig{
 		KeysDir:     keysDir,
@@ -180,7 +200,7 @@ func TestIntegration_JWTExpiry(t *testing.T) {
 		HTTPClient:  server.Client(),
 	})
 
-	instanceUID, _ := persistence.LoadOrCreateInstanceUID(dir)
+	instanceUID, _ := persistence.LoadInstanceUID(dir)
 
 	// Prepare enrollment
 	result, err := authMgr.PrepareEnrollment(context.Background(), server.URL(), enrollmentToken, instanceUID)
@@ -292,6 +312,8 @@ func TestIntegration_CertificateRenewal(t *testing.T) {
 	keysDir := filepath.Join(dir, "keys")
 	logger := zaptest.NewLogger(t)
 
+	require.NoError(t, persistence.InitIdentity(logger, dir, keysDir))
+
 	// Create auth manager with test server's HTTP client
 	authMgr := auth.NewManager(logger.Named("auth"), auth.ManagerConfig{
 		KeysDir:     keysDir,
@@ -300,7 +322,7 @@ func TestIntegration_CertificateRenewal(t *testing.T) {
 	})
 
 	// Load instance UID
-	instanceUID, err := persistence.LoadOrCreateInstanceUID(dir)
+	instanceUID, err := persistence.LoadInstanceUID(dir)
 	require.NoError(t, err)
 
 	// Phase 1: Complete enrollment
@@ -311,7 +333,9 @@ func TestIntegration_CertificateRenewal(t *testing.T) {
 
 	err = authMgr.CompleteEnrollment(certPEM)
 	require.NoError(t, err)
-	require.True(t, authMgr.IsEnrolled())
+	isEnrolled, err := authMgr.IsEnrolled()
+	require.NoError(t, err)
+	require.True(t, isEnrolled)
 
 	// Save old cert info for comparison
 	oldFingerprint := authMgr.CertFingerprint()

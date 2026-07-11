@@ -29,16 +29,16 @@ import (
 // initAuth initializes authentication by loading credentials or preparing enrollment.
 // If enrollment is needed, this prepares the CSR which will be sent via OpAMP.
 func (s *Supervisor) initAuth(ctx context.Context) error {
-	if s.authManager.IsEnrolled() {
+	if isEnrolled, err := s.authManager.IsEnrolled(); err == nil && isEnrolled {
 		s.logger.Debug("Loading existing credentials")
 		if err := s.authManager.LoadCredentials(); err != nil {
 			return fmt.Errorf("failed to load credentials: %w", err)
 		}
 
-		s.logger.Info("Credentials loaded",
-			zap.String("cert_fingerprint", s.authManager.CertFingerprint()),
-		)
+		s.logger.Info("Credentials loaded", zap.String("cert_fingerprint", s.authManager.CertFingerprint()))
 		return nil
+	} else if err != nil {
+		return fmt.Errorf("enrollment check failed: %w", err)
 	}
 
 	// Need to enroll - prepare the CSR
@@ -49,7 +49,6 @@ func (s *Supervisor) initAuth(ctx context.Context) error {
 		return fmt.Errorf("not enrolled and no enrollment token configured")
 	}
 
-	s.logger.Info("Preparing enrollment")
 	result, err := s.authManager.PrepareEnrollment(ctx, s.authCfg.EnrollmentEndpoint, s.authCfg.EnrollmentToken, s.instanceUID)
 	if err != nil {
 		return fmt.Errorf("enrollment preparation failed: %w", err)
@@ -57,8 +56,6 @@ func (s *Supervisor) initAuth(ctx context.Context) error {
 
 	// Store CSR to send via OpAMP after connection is established
 	s.pendingCSR = result.CSRPEM
-
-	s.logger.Info("Enrollment prepared, CSR ready for submission via OpAMP")
 
 	return nil
 }
@@ -75,15 +72,17 @@ func toHTTPHeaders(headers map[string]string) http.Header {
 // During enrollment, the enrollment JWT is set as a static Authorization header.
 // After enrollment, a HeaderFunc is returned that generates a fresh JWT for each request,
 // ensuring the token doesn't expire during long-running connections.
-func (s *Supervisor) buildAuthHeaders(settings connection.Settings) (http.Header, func(http.Header) http.Header) {
+func (s *Supervisor) buildAuthHeaders(settings connection.Settings) (http.Header, func(http.Header) http.Header, error) {
 	headers := toHTTPHeaders(settings.Headers)
 
 	// If we're not enrolled yet, use the enrollment JWT as a static header.
-	if !s.authManager.IsEnrolled() {
+	if isEnrolled, err := s.authManager.IsEnrolled(); err == nil && !isEnrolled {
 		if jwt := s.authManager.EnrollmentJWT(); jwt != "" {
 			headers.Set("Authorization", "Bearer "+jwt)
 		}
-		return headers, nil
+		return headers, nil, nil
+	} else if err != nil {
+		return nil, nil, fmt.Errorf("enrollment check failed: %w", err)
 	}
 
 	// When enrolled, generate a fresh JWT before each HTTP request so the
@@ -98,5 +97,5 @@ func (s *Supervisor) buildAuthHeaders(settings connection.Settings) (http.Header
 		return h
 	}
 
-	return headers, headerFunc
+	return headers, headerFunc, nil
 }
