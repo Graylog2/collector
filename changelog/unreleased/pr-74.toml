@@ -1,6 +1,5 @@
-# Rename this file to pr-<N>.toml when the PR number is known.
 type = "a"
 message = "Add macOS Unified Logging receiver (vendored from opentelemetry-collector-contrib v0.153.0) with a reliable live mode: a forward cursor with (machTimestamp, threadID) dedup so events are emitted exactly once, structured `macos.*` attributes with the human-readable message as the log body, storage-backed cursor persistence across restarts, working poll backoff, and an integrity-verified `/usr/bin/log` invocation. Note: live mode always reads ndjson internally, so the `format` option is currently not honored, and a storage extension is required in live mode."
 
 issues = [""]
-pulls = [""]
+pulls = ["74"]
