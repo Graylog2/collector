@@ -260,3 +260,31 @@ tasks:
     cmds:
       - cmd: |
           echo "{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}"
+
+  update:dependencies:
+    desc: 'Update dependencies in all modules'
+
+    vars:
+      OTEL_BETA_VERSION:
+        sh: go list -m go.opentelemetry.io/collector/cmd/builder@latest | awk '{print $2}'
+      OTEL_STABLE_VERSION:
+        sh: go list -m go.opentelemetry.io/collector/confmap/provider/envprovider@latest | awk '{print $2}'
+      OTEL_CONTRIB_VERSION:
+        sh: go list -m github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver@latest | awk '{print $2}'
+
+    preconditions:
+      - sh: 'test "{{.OTEL_BETA_VERSION}}" = "{{.OTEL_CONTRIB_VERSION}}"'
+        msg: 'Latest OTel core and contrib releases are not aligned yet'
+
+    cmds:
+      - go get go.opentelemetry.io/collector/cmd/builder@{{.OTEL_BETA_VERSION}}
+      - cmd: >-
+          sed -i -E
+          -e 's#((go\.opentelemetry\.io/collector|github\.com/open-telemetry/opentelemetry-collector-contrib)/[^[:space:]]+)[[:space:]]+v0\.[0-9]+\.[0-9]+#\1 {{.OTEL_BETA_VERSION}}#g'
+          -e 's#((go\.opentelemetry\.io/collector|github\.com/open-telemetry/opentelemetry-collector-contrib)/[^[:space:]]+)[[:space:]]+v1\.[0-9]+\.[0-9]+#\1 {{.OTEL_STABLE_VERSION}}#g'
+          builder/builder-config.yaml
+      - go get -u -t ./... && go mod tidy
+      - cd internal/tools && go get -u -t ./... && go mod tidy
+      - cd superv && go get -u -t ./... && go mod tidy
+      - cd receiver/windowseventlogreceiver && go get -u -t ./... && go mod tidy
+      - task: builder:generate
