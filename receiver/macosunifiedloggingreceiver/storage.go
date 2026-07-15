@@ -22,11 +22,11 @@ func getStorageClient(ctx context.Context, host component.Host, storageID *compo
 	}
 	ext, ok := host.GetExtensions()[*storageID]
 	if !ok {
-		return nil, fmt.Errorf("storage extension %q not found", storageID)
+		return nil, fmt.Errorf("storage extension %q not found", *storageID)
 	}
 	se, ok := ext.(storage.Extension)
 	if !ok {
-		return nil, fmt.Errorf("non-storage extension %q configured as storage", storageID)
+		return nil, fmt.Errorf("non-storage extension %q configured as storage", *storageID)
 	}
 	return se.GetClient(ctx, component.KindReceiver, id, "")
 }
