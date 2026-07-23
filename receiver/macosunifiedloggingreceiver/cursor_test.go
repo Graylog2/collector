@@ -3,10 +3,27 @@
 
 package macosunifiedloggingreceiver
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
+// ev builds a logEvent the way parseLogEvent would, deriving parsedTime/utcSecond from ts so
+// the cursor sees the same UTC-normalized second production code does. Test timestamps are
+// always valid, so a parse error here is a bug in the test's input.
 func ev(mach, thread int64, boot, ts string) *logEvent {
-	return &logEvent{MachTimestamp: mach, ThreadID: thread, BootUUID: boot, Timestamp: ts}
+	t, err := time.Parse(timestampLayout, ts)
+	if err != nil {
+		panic("ev: invalid test timestamp " + ts + ": " + err.Error())
+	}
+	return &logEvent{
+		MachTimestamp:    mach,
+		ThreadID:         thread,
+		BootUUID:         boot,
+		Timestamp:        ts,
+		parsedTime:       t,
+		utcSecondClamped: t.UTC().Format(startLayout),
+	}
 }
 
 // One poll covering two seconds; commit; second poll re-fetches the boundary second

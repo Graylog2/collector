@@ -61,7 +61,7 @@ func (c *cursor) shouldEmit(e *logEvent) bool {
 	if e.BootUUID != c.bootUUID {
 		return true
 	}
-	if e.wallSecond() != c.wallSecond {
+	if e.utcSecondClamped != c.wallSecond {
 		return true
 	}
 	_, dup := c.seen[identity{Mach: e.MachTimestamp, Thread: e.ThreadID}]
@@ -82,7 +82,7 @@ func (c *cursor) recordDelivered(events []*logEvent) {
 			c.batchSecond = ""
 			c.batchSeen = map[identity]struct{}{}
 		}
-		sec := e.wallSecond()
+		sec := e.utcSecondClamped
 		id := identity{Mach: e.MachTimestamp, Thread: e.ThreadID}
 		switch {
 		case sec > c.batchSecond:

@@ -32,6 +32,16 @@ func TestParseLogEvent_MalformedJSON(t *testing.T) {
 	}
 }
 
+// TestParseLogEvent_UnparseableTimestamp pins the contract: a well-formed JSON event whose
+// timestamp does not parse is a hard error (skipped + logged by the caller), never emitted
+// with a fallback. This keeps un-timeable events out of the cursor.
+func TestParseLogEvent_UnparseableTimestamp(t *testing.T) {
+	line := `{"machTimestamp":1,"threadID":2,"timestamp":"not-a-timestamp"}`
+	if e, err := parseLogEvent([]byte(line)); err == nil {
+		t.Fatalf("expected error for unparseable timestamp, got event %+v", e)
+	}
+}
+
 func TestParseLogEvent_Fields(t *testing.T) {
 	e, err := parseLogEvent([]byte(sampleEvent))
 	if err != nil || e == nil {
@@ -40,8 +50,9 @@ func TestParseLogEvent_Fields(t *testing.T) {
 	if e.MachTimestamp != 12868010147176 || e.ThreadID != 11537025 || e.BootUUID != "BOOT-A" {
 		t.Errorf("dedup fields wrong: %+v", e)
 	}
-	if got := e.wallSecond(); got != "2026-06-29 15:54:42" {
-		t.Errorf("wallSecond = %q", got)
+	// The sample event is in +0200; wallSecond floors it to the second in UTC.
+	if got := e.utcSecondClamped; got != "2026-06-29 13:54:42" {
+		t.Errorf("wallSecond = %q, want the UTC-normalized second", got)
 	}
 }
 
@@ -72,5 +83,26 @@ func TestSetLogRecord(t *testing.T) {
 	wantTS := time.Date(2026, 6, 29, 15, 54, 42, 63082000, time.FixedZone("", 2*3600))
 	if !lr.Timestamp().AsTime().Equal(wantTS) {
 		t.Errorf("timestamp = %v, want %v", lr.Timestamp().AsTime(), wantTS)
+	}
+}
+
+func TestWallSecond_TimezoneStable(t *testing.T) {
+	// 2026-06-29 15:54:42+0200 and 2026-06-29 13:54:42+0000 are the same instant.
+	plus2 := `{"machTimestamp":1,"threadID":2,"timestamp":"2026-06-29 15:54:42.500000+0200"}`
+	utc := `{"machTimestamp":1,"threadID":2,"timestamp":"2026-06-29 13:54:42.500000+0000"}`
+
+	a, err := parseLogEvent([]byte(plus2))
+	if err != nil || a == nil {
+		t.Fatalf("parseLogEvent(+0200) = (%v, %v)", a, err)
+	}
+	b, err := parseLogEvent([]byte(utc))
+	if err != nil || b == nil {
+		t.Fatalf("parseLogEvent(+0000) = (%v, %v)", b, err)
+	}
+	if a.utcSecondClamped != "2026-06-29 13:54:42" {
+		t.Errorf("wallSecond(+0200) = %q, want UTC-normalized 2026-06-29 13:54:42", a.utcSecondClamped)
+	}
+	if a.utcSecondClamped != b.utcSecondClamped {
+		t.Errorf("wallSecond differs across offsets: %q vs %q", a.utcSecondClamped, b.utcSecondClamped)
 	}
 }

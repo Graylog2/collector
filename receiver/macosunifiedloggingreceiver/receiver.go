@@ -125,12 +125,12 @@ func (r *unifiedLoggingReceiver) startArgValue() string {
 		if r.cfg.StartTime != "" {
 			return r.cfg.StartTime
 		}
-		return r.now().Add(-r.cfg.MaxLogAge).Format(startLayout)
+		return r.now().UTC().Add(-r.cfg.MaxLogAge).Format(startLayout)
 	}
 	// Resume: read from the cursor even if it predates max_log_age, so an outage longer than
 	// max_log_age does not silently drop the gap. Warn when it does — the store may already
 	// have aged out part of that gap (a source limit we cannot recover from).
-	if floor := r.now().Add(-r.cfg.MaxLogAge).Format(startLayout); cur < floor {
+	if floor := r.now().UTC().Add(-r.cfg.MaxLogAge).Format(startLayout); cur < floor {
 		r.logger.Warn("resuming from a cursor older than max_log_age; logs in the gap may have aged out of the store",
 			zap.String("cursor", cur), zap.String("max_log_age_floor", floor))
 	}
@@ -138,7 +138,7 @@ func (r *unifiedLoggingReceiver) startArgValue() string {
 }
 
 func (r *unifiedLoggingReceiver) liveArgs(start string) []string {
-	args := []string{"show", "--style", "ndjson", "--start", start}
+	args := []string{"show", "--style", "ndjson", "--start", start + "+0000"}
 	if r.cfg.Predicate != "" {
 		args = append(args, "--predicate", r.cfg.Predicate)
 	}
@@ -206,7 +206,7 @@ readLoop:
 			case e == nil:
 				// non-event (footer, blank line)
 			default:
-				if sec := e.wallSecond(); sec != curSec {
+				if sec := e.utcSecondClamped; sec != curSec {
 					if !flush() { // deliver the now-complete second before moving on
 						break readLoop
 					}
@@ -297,11 +297,14 @@ func nextLine(br *bufio.Reader) (line []byte, oversized int, err error) {
 func (r *unifiedLoggingReceiver) readFromArchive(ctx context.Context) {
 	for _, path := range r.cfg.resolvedArchivePaths {
 		args := []string{"show", "--archive", path, "--style", "ndjson"}
+		// start_time/end_time are interpreted as UTC (the +0000 suffix), matching live
+		// mode's cursor handling, so the same wall-clock string means the same instant
+		// regardless of the host's local timezone.
 		if r.cfg.StartTime != "" {
-			args = append(args, "--start", r.cfg.StartTime)
+			args = append(args, "--start", r.cfg.StartTime+"+0000")
 		}
 		if r.cfg.EndTime != "" {
-			args = append(args, "--end", r.cfg.EndTime)
+			args = append(args, "--end", r.cfg.EndTime+"+0000")
 		}
 		if r.cfg.Predicate != "" {
 			args = append(args, "--predicate", r.cfg.Predicate)

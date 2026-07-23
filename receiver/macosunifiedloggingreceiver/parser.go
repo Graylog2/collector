@@ -38,12 +38,16 @@ type logEvent struct {
 	TraceID                  int64  `json:"traceID"`
 	FormatString             string `json:"formatString"`
 
-	raw string // original line, used as a body fallback when eventMessage is empty
+	parsedTime       time.Time // offset-aware timestamp (from Timestamp)
+	utcSecondClamped string    // seconds-resolution floor of Timestamp for use with log show --start
+	raw              string    // original line, used as a body fallback when eventMessage is empty
 }
 
 // parseLogEvent parses one ndjson line. It returns (nil, nil) for non-events: the
 // trailing {"count":N,"finished":1} footer, blank/whitespace lines, and any object
-// lacking machTimestamp or timestamp. It returns (nil, err) only on malformed JSON.
+// lacking machTimestamp or timestamp. It returns (nil, err) on malformed JSON or an
+// unparseable timestamp — `log` emits a fixed format, so either is a real anomaly, not
+// something to paper over: the cursor must never advance over an event it cannot time.
 func parseLogEvent(line []byte) (*logEvent, error) {
 	trimmed := bytes.TrimSpace(line)
 	if len(trimmed) == 0 || trimmed[0] != '{' {
@@ -56,17 +60,14 @@ func parseLogEvent(line []byte) (*logEvent, error) {
 	if e.MachTimestamp == 0 || e.Timestamp == "" {
 		return nil, nil
 	}
+	t, err := time.Parse(timestampLayout, e.Timestamp)
+	if err != nil {
+		return nil, err
+	}
+	e.parsedTime = t
+	e.utcSecondClamped = t.UTC().Format(startLayout)
 	e.raw = string(trimmed)
 	return &e, nil
-}
-
-// wallSecond returns the event's wall-clock floored to the second in the layout the
-// `log --start` flag accepts. The first 19 chars of the timestamp are exactly that.
-func (e *logEvent) wallSecond() string {
-	if len(e.Timestamp) >= 19 {
-		return e.Timestamp[:19]
-	}
-	return ""
 }
 
 func (e *logEvent) setLogRecord(lr plog.LogRecord, now time.Time) {
@@ -76,9 +77,7 @@ func (e *logEvent) setLogRecord(lr plog.LogRecord, now time.Time) {
 		lr.Body().SetStr(e.raw)
 	}
 	lr.SetObservedTimestamp(pcommon.NewTimestampFromTime(now))
-	if t, err := time.Parse(timestampLayout, e.Timestamp); err == nil {
-		lr.SetTimestamp(pcommon.NewTimestampFromTime(t))
-	}
+	lr.SetTimestamp(pcommon.NewTimestampFromTime(e.parsedTime))
 	if e.MessageType != "" {
 		lr.SetSeverityText(e.MessageType)
 		lr.SetSeverityNumber(mapMessageTypeToSeverity(e.MessageType))

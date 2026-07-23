@@ -29,7 +29,9 @@ supports both live system logs and archived log files (`.logarchive`).
 - Live mode maintains a forward cursor using `(machTimestamp, threadID)` deduplication, so
   events at the boundary second are emitted exactly once instead of being re-emitted on each
   poll. The `--start` value is always floored to whole seconds because the `log` command
-  rejects fractional seconds.
+  rejects fractional seconds, and is anchored to UTC (a `+0000` offset) so that a change in
+  the host's local timezone or a DST transition cannot shift the cursor or skip/duplicate a
+  window.
 - The receiver always invokes `log show --style ndjson` internally (both live and archive
   mode). Each log record's body is set to the human-readable `eventMessage` field; structured
   `macos.*` attributes are emitted for every other field of interest. The user-visible
@@ -59,8 +61,8 @@ supports both live system logs and archived log files (`.logarchive`).
 |--------|------|---------|-------------|
 | `archive_path` | string | `""` | Path or glob pattern to `.logarchive` directory(ies). If empty, reads live system logs. Supports glob patterns (e.g., `*.logarchive`, `**/logs/*.logarchive`) which will match multiple archives. |
 | `predicate` | string | `""` | Filter predicate (e.g., `"subsystem == 'com.apple.example'"`) |
-| `start_time` | string | `""` | Start time in format `"2006-01-02 15:04:05"` |
-| `end_time` | string | `""` | End time in format `"2006-01-02 15:04:05"` (archive mode only) |
+| `start_time` | string | `""` | Start time in format `"2006-01-02 15:04:05"`, interpreted as **UTC**. |
+| `end_time` | string | `""` | End time in format `"2006-01-02 15:04:05"`, interpreted as **UTC** (archive mode only). |
 | `storage` | string | — | Component ID of a storage extension used to persist the live-mode cursor (e.g., `file_storage/default`). **Required for live mode.** |
 | `min_poll_interval` | duration | `1s` | Minimum (floor) poll interval in live mode. Default `1s`, chosen to avoid a self-feeding poll loop (since `log show` logs its own invocations). |
 | `max_poll_interval` | duration | `30s` | Maximum interval between polls in live mode. Uses exponential backoff starting from `min_poll_interval`. |

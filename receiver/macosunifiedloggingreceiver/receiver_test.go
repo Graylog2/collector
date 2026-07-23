@@ -396,3 +396,61 @@ func TestReceiver_StartRequiresStorage(t *testing.T) {
 		t.Fatal("expected Start to fail without storage in live mode")
 	}
 }
+
+// argRecorder is a logRunner that records the args of every invocation and returns an empty
+// body, so a test can assert exactly which flags the receiver passed to `log`.
+type argRecorder struct {
+	mu   sync.Mutex
+	args [][]string
+}
+
+func (r *argRecorder) Run(_ context.Context, args []string) (io.ReadCloser, func() (string, error), error) {
+	r.mu.Lock()
+	r.args = append(r.args, append([]string(nil), args...))
+	r.mu.Unlock()
+	return io.NopCloser(strings.NewReader("")), func() (string, error) { return "", nil }, nil
+}
+
+// hasFlag reports whether args contains flag immediately followed by val.
+func hasFlag(args []string, flag, val string) bool {
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == flag && args[i+1] == val {
+			return true
+		}
+	}
+	return false
+}
+
+// TestLiveArgs_StartAnchoredUTC proves the live --start value carries an explicit UTC offset,
+// so `log` interprets it independently of the host's local timezone.
+func TestLiveArgs_StartAnchoredUTC(t *testing.T) {
+	r := &unifiedLoggingReceiver{cfg: &Config{}}
+	args := r.liveArgs("2026-06-29 13:54:42")
+	if !hasFlag(args, "--start", "2026-06-29 13:54:42+0000") {
+		t.Errorf("liveArgs = %v, want --start anchored with +0000", args)
+	}
+}
+
+// TestReadFromArchive_TimesAnchoredUTC proves archive mode anchors start_time/end_time to UTC
+// the same way live mode does, so a wall-clock string means the same instant on any host.
+func TestReadFromArchive_TimesAnchoredUTC(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.resolvedArchivePaths = []string{"/tmp/does-not-matter.logarchive"}
+	cfg.StartTime = "2024-01-01 00:00:00"
+	cfg.EndTime = "2024-01-02 00:00:00"
+	rec := &argRecorder{}
+	r := newUnifiedLoggingReceiver(cfg, receivertest.NewNopSettings(component.MustNewType("macos_unified_logging")), new(consumertest.LogsSink), rec)
+
+	r.readFromArchive(context.Background())
+
+	if len(rec.args) != 1 {
+		t.Fatalf("expected 1 log invocation, got %d", len(rec.args))
+	}
+	args := rec.args[0]
+	if !hasFlag(args, "--start", "2024-01-01 00:00:00+0000") {
+		t.Errorf("archive args = %v, want --start anchored with +0000", args)
+	}
+	if !hasFlag(args, "--end", "2024-01-02 00:00:00+0000") {
+		t.Errorf("archive args = %v, want --end anchored with +0000", args)
+	}
+}
