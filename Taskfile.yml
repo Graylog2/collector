@@ -26,12 +26,15 @@ vars:
   FMT_ARGS_OTEL: >-
     -f .license.template.otel
     -ignore '**/*.{yml,yaml}'
-    receiver/windowseventlogreceiver
+    receiver/windowseventlogreceiver receiver/macosunifiedloggingreceiver
 
 includes:
   'receiver:winlog':
     taskfile: ./receiver/windowseventlogreceiver/Taskfile.yml
     dir: ./receiver/windowseventlogreceiver
+  'receiver:macoslog':
+    taskfile: ./receiver/macosunifiedloggingreceiver/Taskfile.yml
+    dir: ./receiver/macosunifiedloggingreceiver
   superv:
     taskfile: ./superv/Taskfile.yml
     dir: ./superv
@@ -72,6 +75,7 @@ tasks:
     desc: 'Run unit tests for all modules'
     cmds: # We use cmds instead of deps to have deterministic order and output
       - task: receiver:winlog:test
+      - task: receiver:macoslog:test
       - task: superv:test
       - task: builder:test
 
@@ -87,6 +91,7 @@ tasks:
       - go tool govulncheck -C builder ./...
       - go tool govulncheck -C superv ./...
       - go tool govulncheck -C receiver/windowseventlogreceiver ./...
+      - go tool govulncheck -C receiver/macosunifiedloggingreceiver ./...
 
   all:
     desc: 'Cross-compile collector for all platforms with full preflight'

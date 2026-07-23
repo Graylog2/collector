@@ -6,6 +6,7 @@ go 1.26.0
 
 require (
 	github.com/Graylog2/collector/extension/sidecar v1.5.0
+	github.com/Graylog2/collector/receiver/macosunifiedloggingreceiver v0.0.0
 	github.com/Graylog2/collector/receiver/windowseventlogreceiver v0.0.0
 	github.com/Graylog2/collector/superv v0.0.0-00010101000000-000000000000
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.156.0
@@ -14,7 +15,6 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.156.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/journaldreceiver v0.156.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/macosunifiedloggingreceiver v0.156.0
 	github.com/spf13/cobra v1.10.2
 	go.opentelemetry.io/collector/component v1.62.0
 	go.opentelemetry.io/collector/confmap v1.62.0
@@ -222,5 +222,7 @@ require (
 replace github.com/Graylog2/collector/extension/sidecar => ../extension/sidecar
 
 replace github.com/Graylog2/collector/receiver/windowseventlogreceiver => ../receiver/windowseventlogreceiver
+
+replace github.com/Graylog2/collector/receiver/macosunifiedloggingreceiver => ../receiver/macosunifiedloggingreceiver
 
 replace github.com/Graylog2/collector/superv => ../superv
