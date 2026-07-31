@@ -197,7 +197,11 @@ The receiver maintains a **forward cursor** so that each event is delivered exac
    pair of every event at that boundary second and skips any that were already emitted.
 3. **Persistence**: After each successful poll the cursor is serialized and saved via the
    storage extension identified by `storage:`. On restart the cursor is loaded from storage
-   and polling continues from the last committed position.
+   and polling continues from the last committed position. If the stored cursor cannot be
+   *read* at startup, the receiver fails to start rather than beginning fresh — a silent fresh
+   start would re-read and re-ingest up to `max_log_age` of logs. A cursor that is present but
+   unparseable, or that was written under a different `predicate`, is discarded with a log
+   message and the receiver starts fresh (both are expected states, not failures).
 4. **Reboot detection**: If the `bootUUID` field changes between events, the cursor is
    reset immediately — `machTimestamp` is monotonic per boot, so values from a previous boot
    are meaningless as a cursor position.

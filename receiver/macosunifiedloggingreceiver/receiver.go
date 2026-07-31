@@ -65,7 +65,15 @@ func (r *unifiedLoggingReceiver) Start(_ context.Context, host component.Host) e
 		return err
 	}
 	r.storage = client
-	if data, err := client.Get(context.Background(), cursorStorageKey); err == nil && len(data) > 0 {
+
+	// A read failure is fatal rather than a silent fresh start: we cannot tell "no cursor yet"
+	// from "cursor unreadable", and guessing the former re-ingests up to max_log_age of logs.
+	// For a bbolt-backed file_storage this means a corrupt or unreadable store, not a blip.
+	data, err := client.Get(context.Background(), cursorStorageKey)
+	if err != nil {
+		return fmt.Errorf("could not read persisted cursor from storage extension %q: %w", *r.cfg.StorageID, err)
+	}
+	if len(data) > 0 {
 		switch c, lerr := loadCursor(data); {
 		case lerr != nil:
 			r.logger.Warn("could not load persisted cursor; starting fresh", zap.Error(lerr))
@@ -241,10 +249,15 @@ readLoop:
 	// Fold the delivered seconds into the committed cursor and persist. batchSecond reflects
 	// only delivered data, so this is safe to run even after a consume error — it advances
 	// exactly to the last second that was accepted.
+	//
+	// The write deliberately does not inherit ctx's cancellation. Shutdown cancels ctx while a
+	// poll is in flight, so by the time we get here on the final poll ctx is already done — and
+	// this is the one write that must not be lost: dropping it re-emits that poll's events as
+	// duplicates on the next start. Values (deadlines aside) still propagate.
 	r.cursor.commit()
 	if r.storage != nil {
 		if data, merr := r.cursor.marshal(); merr == nil {
-			if serr := r.storage.Set(ctx, cursorStorageKey, data); serr != nil {
+			if serr := r.storage.Set(context.WithoutCancel(ctx), cursorStorageKey, data); serr != nil {
 				r.logger.Warn("failed to persist cursor", zap.Error(serr))
 			}
 		}

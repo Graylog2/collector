@@ -389,6 +389,67 @@ func TestPollOnce_OversizedLineIsSkipped(t *testing.T) {
 	}
 }
 
+// TestPollOnce_FinalCursorWriteSurvivesCancellation pins the shutdown-ordering fix: Shutdown
+// cancels the polling context while a poll is in flight, so the last poll reaches its cursor
+// write with an already-canceled ctx. That write must not inherit the cancellation — a backend
+// that honors ctx (bbolt ignores it today, a networked store would not) would drop the last
+// poll's progress, and every event it delivered would be re-emitted as a duplicate on restart.
+func TestPollOnce_FinalCursorWriteSurvivesCancellation(t *testing.T) {
+	mem := newMemStorage()
+	cfg := createDefaultConfig().(*Config)
+	r := newUnifiedLoggingReceiver(cfg, receivertest.NewNopSettings(component.MustNewType("macos_unified_logging")), new(consumertest.LogsSink), &fakeRunner{})
+	r.storage = mem
+
+	// Exactly the state Shutdown creates: the poll's parent context is already done.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if _, err := r.pollOnce(ctx); err != nil {
+		t.Fatalf("a poll interrupted by shutdown should not report an error, got: %v", err)
+	}
+
+	total, canceled := mem.setStats()
+	if total == 0 {
+		t.Fatal("the interrupted poll never persisted its cursor at all")
+	}
+	if canceled != 0 {
+		t.Errorf("%d of %d cursor writes arrived with an already-canceled context; wrap it in context.WithoutCancel so the final write survives shutdown", canceled, total)
+	}
+}
+
+// TestReceiver_StartFailsOnStorageReadError proves a cursor read failure is surfaced instead of
+// being swallowed into a silent fresh start. Starting fresh would re-read up to max_log_age
+// (24h by default) and re-ingest all of it — expensive and invisible, where a failed Start is
+// neither.
+func TestReceiver_StartFailsOnStorageReadError(t *testing.T) {
+	sid := component.MustNewID("file_storage")
+	client := &errGetStorage{memStorage: newMemStorage(), err: errors.New("bbolt: database file is corrupt")}
+	host := fakeHost{exts: map[component.ID]component.Component{
+		sid: &fakeStorageExt{client: client},
+	}}
+
+	cfg := createDefaultConfig().(*Config)
+	cfg.StorageID = &sid
+	r := newUnifiedLoggingReceiver(cfg, receivertest.NewNopSettings(component.MustNewType("macos_unified_logging")), new(consumertest.LogsSink), &fakeRunner{})
+
+	err := r.Start(context.Background(), host)
+	if err == nil {
+		t.Fatal("Start must fail when the persisted cursor cannot be read, not silently start fresh")
+	}
+	if !strings.Contains(err.Error(), "database file is corrupt") {
+		t.Errorf("Start error should wrap the underlying storage failure so it is diagnosable, got: %v", err)
+	}
+
+	// The collector still calls Shutdown on a component whose Start failed; the client we
+	// already acquired must be released rather than leaked.
+	if err := r.Shutdown(context.Background()); err != nil {
+		t.Errorf("shutdown after failed start: %v", err)
+	}
+	if got := client.closeCount(); got != 1 {
+		t.Errorf("storage client closed %d times after a failed Start, want 1", got)
+	}
+}
+
 func TestReceiver_StartRequiresStorage(t *testing.T) {
 	cfg := createDefaultConfig().(*Config) // StorageID nil, live mode
 	r := newUnifiedLoggingReceiver(cfg, receivertest.NewNopSettings(component.MustNewType("macos_unified_logging")), new(consumertest.LogsSink), &fakeRunner{})
