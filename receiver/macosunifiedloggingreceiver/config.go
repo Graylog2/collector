@@ -8,12 +8,8 @@ package macosunifiedloggingreceiver // import "github.com/Graylog2/collector/rec
 import (
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
-
-	"github.com/bmatcuk/doublestar/v4"
 )
 
 // Valid field names for macOS unified logging predicates
@@ -127,32 +123,10 @@ func (cfg *Config) Validate() error {
 		}
 	}
 
-	// Validate archive path if specified
-	if cfg.ArchivePath != "" {
-		resolvedPaths, err := resolveArchivePath(cfg.ArchivePath)
-		if err != nil {
-			return fmt.Errorf("failed to resolve archive path: %w", err)
-		}
-		if len(resolvedPaths) == 0 {
-			return errors.New("no archive paths matched the provided pattern")
-		}
-		// Store the resolved paths internally
-		cfg.resolvedArchivePaths = resolvedPaths
-	}
-
 	// Validate time format if specified
 	if cfg.StartTime != "" {
 		if _, err := time.Parse("2006-01-02 15:04:05", cfg.StartTime); err != nil {
 			return fmt.Errorf("invalid start_time format (expected: 2006-01-02 15:04:05): %w", err)
-		}
-	}
-
-	if cfg.EndTime != "" {
-		if cfg.ArchivePath == "" {
-			return errors.New("end_time can only be used with archive_path")
-		}
-		if _, err := time.Parse("2006-01-02 15:04:05", cfg.EndTime); err != nil {
-			return fmt.Errorf("invalid end_time format (expected: 2006-01-02 15:04:05): %w", err)
 		}
 	}
 
@@ -326,52 +300,4 @@ func hasBalancedParentheses(s string) bool {
 		}
 	}
 	return count == 0
-}
-
-// resolveArchivePath takes a path (potentially with glob pattern)
-// and returns a list of resolved archive directory paths
-func resolveArchivePath(pattern string) ([]string, error) {
-	var resolved []string
-
-	// Clean the pattern
-	pattern = filepath.Clean(pattern)
-
-	// Check if pattern contains glob characters
-	hasGlob := strings.ContainsAny(pattern, "*?[]")
-
-	if hasGlob {
-		// Use doublestar for glob matching
-		matches, err := doublestar.FilepathGlob(pattern)
-		if err != nil {
-			return nil, fmt.Errorf("invalid glob pattern %q: %w", pattern, err)
-		}
-
-		// Validate each matched path
-		for _, match := range matches {
-			if err := validateArchivePath(match); err != nil {
-				// Skip invalid matches and continue
-				continue
-			}
-			resolved = append(resolved, match)
-		}
-		return resolved, nil
-	}
-
-	// Direct path without glob
-	if err := validateArchivePath(pattern); err != nil {
-		return nil, err
-	}
-	return []string{pattern}, nil
-}
-
-// validateArchivePath checks if a path exists and is a valid archive directory
-func validateArchivePath(path string) error {
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("archive_path %q does not exist: %w", path, err)
-	}
-	if !info.IsDir() {
-		return fmt.Errorf("archive_path %q must be a directory (.logarchive)", path)
-	}
-	return nil
 }

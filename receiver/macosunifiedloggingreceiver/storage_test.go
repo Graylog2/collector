@@ -15,11 +15,20 @@ import (
 // memStorage is an in-memory storage.Client for tests. Unlike storage.NewNopClient it
 // actually retains values, so a cursor can be pre-seeded and then read back by Start.
 type memStorage struct {
-	mu sync.Mutex
-	m  map[string][]byte
+	mu     sync.Mutex
+	m      map[string][]byte
+	closes int
 }
 
 func newMemStorage() *memStorage { return &memStorage{m: map[string][]byte{}} }
+
+// closeCount reports how many times Close was called, so a test can assert Shutdown
+// releases the storage client instead of leaking it.
+func (s *memStorage) closeCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closes
+}
 
 func (s *memStorage) Get(_ context.Context, key string) ([]byte, error) {
 	s.mu.Lock()
@@ -57,7 +66,12 @@ func (s *memStorage) Batch(_ context.Context, ops ...*storage.Operation) error {
 	return nil
 }
 
-func (s *memStorage) Close(context.Context) error { return nil }
+func (s *memStorage) Close(context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closes++
+	return nil
+}
 
 type fakeStorageExt struct{ client storage.Client }
 

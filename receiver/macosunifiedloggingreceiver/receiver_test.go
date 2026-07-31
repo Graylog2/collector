@@ -397,6 +397,63 @@ func TestReceiver_StartRequiresStorage(t *testing.T) {
 	}
 }
 
+// TestReceiver_RestartOnSameHost exercises the collector's real lifecycle contract: two
+// successive receiver instances started and stopped against one host and one storage
+// extension, as happens on a config reload. Combined with goleak in TestMain this proves
+// Shutdown reaps the polling goroutine, and the close count proves it releases the storage
+// client rather than leaking a handle per reload.
+func TestReceiver_RestartOnSameHost(t *testing.T) {
+	sid := component.MustNewID("file_storage")
+	mem := newMemStorage()
+	host := fakeHost{exts: map[component.ID]component.Component{
+		sid: &fakeStorageExt{client: mem},
+	}}
+
+	newReceiver := func() *unifiedLoggingReceiver {
+		cfg := createDefaultConfig().(*Config)
+		cfg.MinPollInterval = 10 * time.Millisecond
+		cfg.MaxPollInterval = 10 * time.Millisecond
+		cfg.StorageID = &sid
+		return newUnifiedLoggingReceiver(cfg, receivertest.NewNopSettings(component.MustNewType("macos_unified_logging")), new(consumertest.LogsSink), &fakeRunner{})
+	}
+
+	for i := 1; i <= 2; i++ {
+		r := newReceiver()
+		if err := r.Start(context.Background(), host); err != nil {
+			t.Fatalf("start %d: %v", i, err)
+		}
+		if err := r.Shutdown(context.Background()); err != nil {
+			t.Fatalf("shutdown %d: %v", i, err)
+		}
+		if got := mem.closeCount(); got != i {
+			t.Errorf("after %d lifecycles: storage closed %d times, want %d", i, got, i)
+		}
+	}
+}
+
+// TestReceiver_ShutdownWithoutStartIsSafe pins the nil guards in Shutdown. The collector
+// calls Shutdown on a component whose Start returned an error, so Shutdown must tolerate a
+// receiver that never acquired a cancel func or a storage client.
+func TestReceiver_ShutdownWithoutStartIsSafe(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	set := receivertest.NewNopSettings(component.MustNewType("macos_unified_logging"))
+
+	// Never started at all.
+	r := newUnifiedLoggingReceiver(cfg, set, new(consumertest.LogsSink), &fakeRunner{})
+	if err := r.Shutdown(context.Background()); err != nil {
+		t.Errorf("shutdown without start: %v", err)
+	}
+
+	// Started, but Start failed before it could install cancel or storage.
+	r2 := newUnifiedLoggingReceiver(cfg, set, new(consumertest.LogsSink), &fakeRunner{})
+	if err := r2.Start(context.Background(), fakeHost{exts: map[component.ID]component.Component{}}); err == nil {
+		t.Fatal("expected Start to fail without storage")
+	}
+	if err := r2.Shutdown(context.Background()); err != nil {
+		t.Errorf("shutdown after failed start: %v", err)
+	}
+}
+
 // argRecorder is a logRunner that records the args of every invocation and returns an empty
 // body, so a test can assert exactly which flags the receiver passed to `log`.
 type argRecorder struct {
@@ -428,29 +485,5 @@ func TestLiveArgs_StartAnchoredUTC(t *testing.T) {
 	args := r.liveArgs("2026-06-29 13:54:42")
 	if !hasFlag(args, "--start", "2026-06-29 13:54:42+0000") {
 		t.Errorf("liveArgs = %v, want --start anchored with +0000", args)
-	}
-}
-
-// TestReadFromArchive_TimesAnchoredUTC proves archive mode anchors start_time/end_time to UTC
-// the same way live mode does, so a wall-clock string means the same instant on any host.
-func TestReadFromArchive_TimesAnchoredUTC(t *testing.T) {
-	cfg := createDefaultConfig().(*Config)
-	cfg.resolvedArchivePaths = []string{"/tmp/does-not-matter.logarchive"}
-	cfg.StartTime = "2024-01-01 00:00:00"
-	cfg.EndTime = "2024-01-02 00:00:00"
-	rec := &argRecorder{}
-	r := newUnifiedLoggingReceiver(cfg, receivertest.NewNopSettings(component.MustNewType("macos_unified_logging")), new(consumertest.LogsSink), rec)
-
-	r.readFromArchive(context.Background())
-
-	if len(rec.args) != 1 {
-		t.Fatalf("expected 1 log invocation, got %d", len(rec.args))
-	}
-	args := rec.args[0]
-	if !hasFlag(args, "--start", "2024-01-01 00:00:00+0000") {
-		t.Errorf("archive args = %v, want --start anchored with +0000", args)
-	}
-	if !hasFlag(args, "--end", "2024-01-02 00:00:00+0000") {
-		t.Errorf("archive args = %v, want --end anchored with +0000", args)
 	}
 }

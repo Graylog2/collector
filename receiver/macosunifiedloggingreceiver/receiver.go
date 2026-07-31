@@ -60,22 +60,20 @@ func newUnifiedLoggingReceiver(cfg *Config, set receiver.Settings, consumer cons
 }
 
 func (r *unifiedLoggingReceiver) Start(_ context.Context, host component.Host) error {
-	if r.cfg.ArchivePath == "" {
-		client, err := getStorageClient(context.Background(), host, r.cfg.StorageID, r.id)
-		if err != nil {
-			return err
-		}
-		r.storage = client
-		if data, err := client.Get(context.Background(), cursorStorageKey); err == nil && len(data) > 0 {
-			switch c, lerr := loadCursor(data); {
-			case lerr != nil:
-				r.logger.Warn("could not load persisted cursor; starting fresh", zap.Error(lerr))
-			case c.predicateHash != r.cursor.predicateHash:
-				r.logger.Info("predicate changed since last run; discarding persisted cursor and starting fresh",
-					zap.String("persisted", c.predicateHash), zap.String("current", r.cursor.predicateHash))
-			default:
-				r.cursor = c
-			}
+	client, err := getStorageClient(context.Background(), host, r.cfg.StorageID, r.id)
+	if err != nil {
+		return err
+	}
+	r.storage = client
+	if data, err := client.Get(context.Background(), cursorStorageKey); err == nil && len(data) > 0 {
+		switch c, lerr := loadCursor(data); {
+		case lerr != nil:
+			r.logger.Warn("could not load persisted cursor; starting fresh", zap.Error(lerr))
+		case c.predicateHash != r.cursor.predicateHash:
+			r.logger.Info("predicate changed since last run; discarding persisted cursor and starting fresh",
+				zap.String("persisted", c.predicateHash), zap.String("current", r.cursor.predicateHash))
+		default:
+			r.cursor = c
 		}
 	}
 
@@ -99,10 +97,6 @@ func (r *unifiedLoggingReceiver) Shutdown(ctx context.Context) error {
 }
 
 func (r *unifiedLoggingReceiver) readLogs(ctx context.Context) {
-	if r.cfg.ArchivePath != "" {
-		r.readFromArchive(ctx)
-		return
-	}
 	for {
 		count, err := r.pollOnce(ctx)
 		if err != nil && ctx.Err() == nil {
@@ -291,50 +285,4 @@ func nextLine(br *bufio.Reader) (line []byte, oversized int, err error) {
 		oversized += len(chunk)
 	}
 	return nil, oversized, err
-}
-
-// readFromArchive runs one log invocation per resolved archive path (one-shot, no cursor).
-func (r *unifiedLoggingReceiver) readFromArchive(ctx context.Context) {
-	for _, path := range r.cfg.resolvedArchivePaths {
-		args := []string{"show", "--archive", path, "--style", "ndjson"}
-		// start_time/end_time are interpreted as UTC (the +0000 suffix), matching live
-		// mode's cursor handling, so the same wall-clock string means the same instant
-		// regardless of the host's local timezone.
-		if r.cfg.StartTime != "" {
-			args = append(args, "--start", r.cfg.StartTime+"+0000")
-		}
-		if r.cfg.EndTime != "" {
-			args = append(args, "--end", r.cfg.EndTime+"+0000")
-		}
-		if r.cfg.Predicate != "" {
-			args = append(args, "--predicate", r.cfg.Predicate)
-		}
-		stdout, wait, err := r.runner.Run(ctx, args)
-		if err != nil {
-			r.logger.Error("failed to start log for archive", zap.String("archive", path), zap.Error(err))
-			continue
-		}
-		logs, records := newBatch()
-		scanner := bufio.NewScanner(stdout)
-		buf := make([]byte, 0, 1024*1024)
-		scanner.Buffer(buf, 10*1024*1024)
-		for scanner.Scan() {
-			if ctx.Err() != nil {
-				break
-			}
-			e, perr := parseLogEvent(scanner.Bytes())
-			if perr != nil || e == nil {
-				continue
-			}
-			e.setLogRecord(records.AppendEmpty(), r.now())
-			if records.Len() >= flushBatchSize {
-				_ = r.consumer.ConsumeLogs(ctx, logs)
-				logs, records = newBatch()
-			}
-		}
-		_, _ = wait()
-		if records.Len() > 0 {
-			_ = r.consumer.ConsumeLogs(ctx, logs)
-		}
-	}
 }
