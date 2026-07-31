@@ -23,7 +23,11 @@ import (
 const (
 	startLayout    = "2006-01-02 15:04:05"
 	flushBatchSize = 1000
-	maxLineBytes   = 1024 * 1024
+	// maxLineBytes matches the cap upstream applied via bufio.Scanner. The buffer is allocated
+	// once per receiver and reused across polls (see pollOnce), not per poll: unlike Scanner,
+	// which grows lazily from 64KB, bufio.NewReaderSize allocates its full size immediately, so
+	// re-creating it every poll would churn 10MB per tick at the default cadence.
+	maxLineBytes = 10 * 1024 * 1024
 )
 
 type unifiedLoggingReceiver struct {
@@ -41,6 +45,9 @@ type unifiedLoggingReceiver struct {
 	// maxLineBytes caps a single ndjson line; longer lines are skipped. A field (not the
 	// const directly) so tests can exercise the skip path without a multi-megabyte line.
 	maxLineBytes int
+	// br is the line reader, retained across polls so its maxLineBytes-sized buffer is
+	// allocated once rather than per poll. Only ever touched by the single poll goroutine.
+	br *bufio.Reader
 }
 
 func newUnifiedLoggingReceiver(cfg *Config, set receiver.Settings, consumer consumer.Logs, runner logRunner) *unifiedLoggingReceiver {
@@ -186,7 +193,14 @@ func (r *unifiedLoggingReceiver) pollOnce(ctx context.Context) (int, error) {
 		return true
 	}
 
-	br := bufio.NewReaderSize(stdout, r.maxLineBytes)
+	// Reuse the existing buffer when it is already the right size; a test that lowers
+	// maxLineBytes after construction gets a correctly-sized one on its first poll.
+	if r.br == nil || r.br.Size() != r.maxLineBytes {
+		r.br = bufio.NewReaderSize(stdout, r.maxLineBytes)
+	} else {
+		r.br.Reset(stdout)
+	}
+	br := r.br
 	var scanErr error
 readLoop:
 	for {
@@ -204,7 +218,10 @@ readLoop:
 			e, perr := parseLogEvent(line)
 			switch {
 			case perr != nil:
-				r.logger.Warn("failed to parse log line", zap.Error(perr))
+				// Dropped permanently, not retried: an event we cannot time cannot be placed
+				// against the cursor. Error-level because it is silent data loss, and `log`
+				// emits a fixed format so this should never fire in normal operation.
+				r.logger.Error("dropping unparseable log line", zap.Error(perr))
 			case e == nil:
 				// non-event (footer, blank line)
 			default:

@@ -46,8 +46,14 @@ type logEvent struct {
 // parseLogEvent parses one ndjson line. It returns (nil, nil) for non-events: the
 // trailing {"count":N,"finished":1} footer, blank/whitespace lines, and any object
 // lacking machTimestamp or timestamp. It returns (nil, err) on malformed JSON or an
-// unparseable timestamp — `log` emits a fixed format, so either is a real anomaly, not
-// something to paper over: the cursor must never advance over an event it cannot time.
+// unparseable timestamp — `log` emits a fixed format, so either is a real anomaly rather
+// than something to absorb silently.
+//
+// An event that cannot be timed cannot be positioned against the cursor, so pollOnce drops
+// it (logging at Error) and continues. That is a deliberate trade: the alternative — refusing
+// to advance past it — would wedge the receiver on the bad line forever and stop collection
+// entirely. The consequence is real data loss, because once later events advance the cursor
+// past that second the dropped record is unrecoverable.
 func parseLogEvent(line []byte) (*logEvent, error) {
 	trimmed := bytes.TrimSpace(line)
 	if len(trimmed) == 0 || trimmed[0] != '{' {

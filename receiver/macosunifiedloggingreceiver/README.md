@@ -36,8 +36,12 @@ The macOS Unified Logging Receiver collects logs from the live macOS system log 
 - The `log` binary is invoked at its fixed absolute path `/usr/bin/log` and integrity-verified
   at startup: filesystem ownership and SIP-restriction checks are required; an Apple
   code-signature check (`codesign --verify`) is performed as a best-effort second layer.
-- A `min_poll_interval` (default `1s`) floors the backoff. The `1s` default is chosen to avoid
-  a self-feeding poll loop, since `log show` logs its own invocations.
+- A `min_poll_interval` (default `1s`, minimum `100ms`) floors the backoff. Both the default
+  and the minimum exist to avoid a self-feeding poll loop, since `log show` logs its own
+  invocations.
+- An ndjson line longer than 10 MB is skipped with a diagnostic rather than stalling the
+  reader. Upstream used a `bufio.Scanner` with the same 10 MB cap but no skip path, so an
+  oversized line ended the read silently.
 
 ## Requirements
 
@@ -52,11 +56,11 @@ The macOS Unified Logging Receiver collects logs from the live macOS system log 
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `storage` | string | — | Component ID of a storage extension used to persist the read cursor (e.g., `file_storage/default`). **Required** — startup fails without it. |
+| `storage` | string | — | Component ID of a storage extension used to persist the read cursor (e.g., `file_storage/default`). **Required** — config validation fails without it, so `otelcol validate` catches it offline. |
 | `predicate` | string | `""` | Filter predicate (e.g., `"subsystem == 'com.apple.example'"`) |
 | `start_time` | string | `""` | Where to begin reading on a **cold start** (no persisted cursor), in format `"2006-01-02 15:04:05"`, interpreted as **UTC**. Takes precedence over `max_log_age`. Ignored once a cursor exists. |
 | `max_log_age` | duration | `24h` | On a **cold start** with no `start_time`, begin reading this far back. Ignored once a cursor exists, except to warn when the cursor is older (see [Live Cursor](#live-cursor)). |
-| `min_poll_interval` | duration | `1s` | Minimum (floor) poll interval. Default `1s`, chosen to avoid a self-feeding poll loop (since `log show` logs its own invocations). |
+| `min_poll_interval` | duration | `1s` | Minimum (floor) poll interval. Must be at least `100ms`; lower values are rejected because `log show` logs its own invocations and a shorter floor lets the receiver's own reads sustain a self-feeding poll loop. |
 | `max_poll_interval` | duration | `30s` | Maximum interval between polls. Uses exponential backoff starting from `min_poll_interval`. |
 | `format` | string | `"default"` | **Currently has no effect (reserved).** Accepts `default`, `ndjson`, `json`, `syslog`, or `compact`, but the receiver always reads `ndjson` internally, so this option is not honored. |
 
@@ -69,6 +73,11 @@ The receiver uses exponential backoff to optimize polling based on log activity:
 - **Automatic reset**: As soon as events are detected again, the interval returns to `min_poll_interval`.
 
 This minimizes both latency during active logging and resource usage during idle periods.
+
+> **Known limitation.** `log show` writes a log record for its own invocation, so a
+> receiver configured without a `predicate` sees at least one "new" event on every poll and
+> the interval stays pinned at `min_poll_interval` — the idle backoff above effectively never
+> engages. A `predicate` that excludes the receiver's own reads restores it.
 
 ### Basic Configuration
 

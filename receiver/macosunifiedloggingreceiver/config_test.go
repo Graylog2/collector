@@ -11,15 +11,47 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 )
 
 func TestConfigValidate(t *testing.T) {
 	testCases := []struct {
-		desc        string
-		makeCfg     func(t *testing.T) *Config
+		desc    string
+		makeCfg func(t *testing.T) *Config
+		// omitStorage keeps the loop from supplying a StorageID, for the cases that are about
+		// its absence. Every other case exercises an unrelated field and would otherwise trip
+		// the storage check before reaching what it means to test.
+		omitStorage bool
 		expectedErr string
 	}{
+		{
+			desc: "storage is required",
+			makeCfg: func(_ *testing.T) *Config {
+				return &Config{MaxPollInterval: 50 * time.Second}
+			},
+			omitStorage: true,
+			expectedErr: "storage is required",
+		},
+		{
+			desc: "min_poll_interval below the floor is rejected",
+			makeCfg: func(_ *testing.T) *Config {
+				return &Config{MinPollInterval: time.Millisecond}
+			},
+			expectedErr: "must be at least 100ms",
+		},
+		{
+			desc: "min_poll_interval at the floor is accepted",
+			makeCfg: func(_ *testing.T) *Config {
+				return &Config{MinPollInterval: 100 * time.Millisecond}
+			},
+		},
+		{
+			desc: "min_poll_interval unset means default, not below the floor",
+			makeCfg: func(_ *testing.T) *Config {
+				return &Config{}
+			},
+		},
 		{
 			desc: "valid config - live mode",
 			makeCfg: func(_ *testing.T) *Config {
@@ -170,9 +202,13 @@ func TestConfigValidate(t *testing.T) {
 		},
 	}
 
+	storageID := component.MustNewID("file_storage")
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			cfg := tc.makeCfg(t)
+			if !tc.omitStorage {
+				cfg.StorageID = &storageID
+			}
 			err := cfg.Validate()
 			if tc.expectedErr != "" {
 				require.ErrorContains(t, err, tc.expectedErr)
@@ -184,8 +220,10 @@ func TestConfigValidate(t *testing.T) {
 }
 
 func TestPredicateNormalization(t *testing.T) {
+	storageID := component.MustNewID("file_storage")
 	cfg := &Config{
 		Predicate: "subsystem == 'test' && processID > 100 && messageType == 'Error'",
+		StorageID: &storageID,
 	}
 
 	err := cfg.Validate()
@@ -239,6 +277,11 @@ func TestLoadConfigFromYAML(t *testing.T) {
 			// Verify the config values were parsed correctly
 			require.Equal(t, tc.expectedPred, cfg.Predicate, "predicate mismatch")
 			require.Equal(t, tc.expectedStart, cfg.StartTime, "start_time mismatch")
+
+			// storage is a *component.ID, so unlike the other fields it round-trips through
+			// component.ID's TextUnmarshaler; assert the "type/name" form actually parses.
+			require.NotNil(t, cfg.StorageID, "storage did not unmarshal")
+			require.Equal(t, "file_storage/default", cfg.StorageID.String(), "storage mismatch")
 
 			if tc.expectedPoll > 0 {
 				require.Equal(t, tc.expectedPoll, cfg.MaxPollInterval, "max_poll_interval mismatch")

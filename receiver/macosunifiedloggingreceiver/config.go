@@ -97,8 +97,19 @@ var validOperators = []string{
 	"MATCHES",
 }
 
+// minPollFloor is the lowest accepted min_poll_interval. `log show` writes a record for its
+// own invocation, so a sub-100ms floor lets the receiver's own reads sustain a self-feeding
+// hot loop: each poll observes the previous poll and immediately schedules another.
+const minPollFloor = 100 * time.Millisecond
+
 // Validate checks the Config is valid
 func (cfg *Config) Validate() error {
+	// Checked here as well as in Start so `otelcol validate` rejects the config offline,
+	// instead of the collector failing on the first startup attempt.
+	if cfg.StorageID == nil {
+		return errors.New("storage is required: set 'storage:' to the ID of a configured storage extension (for example file_storage/default)")
+	}
+
 	// Set default format if not specified
 	if cfg.Format == "" {
 		cfg.Format = "default"
@@ -130,8 +141,13 @@ func (cfg *Config) Validate() error {
 		}
 	}
 
+	// Zero means "unset": newUnifiedLoggingReceiver substitutes the 1s default, so it stays
+	// legal. Any explicit value must clear the floor.
 	if cfg.MinPollInterval < 0 {
 		return errors.New("min_poll_interval must not be negative")
+	}
+	if cfg.MinPollInterval != 0 && cfg.MinPollInterval < minPollFloor {
+		return fmt.Errorf("min_poll_interval (%s) must be at least %s: `log show` logs its own invocation, so a shorter interval can sustain a self-feeding poll loop", cfg.MinPollInterval, minPollFloor)
 	}
 	if cfg.MaxPollInterval > 0 && cfg.MinPollInterval > cfg.MaxPollInterval {
 		return fmt.Errorf("min_poll_interval (%s) must not exceed max_poll_interval (%s)", cfg.MinPollInterval, cfg.MaxPollInterval)

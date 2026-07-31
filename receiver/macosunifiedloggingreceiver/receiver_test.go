@@ -450,6 +450,37 @@ func TestReceiver_StartFailsOnStorageReadError(t *testing.T) {
 	}
 }
 
+// TestPollOnce_ReusesLineBuffer pins both halves of the line-cap fix. The cap is back to
+// upstream's 10MB, but bufio.NewReaderSize allocates its buffer eagerly (unlike bufio.Scanner,
+// which grows lazily from 64KB), so a reader per poll would churn 10MB on every tick — once a
+// second at the default cadence. The reader must be built once and Reset onto each poll's
+// stdout. That Reset is exercised end-to-end by the multi-poll dedup tests above, which would
+// read stale bytes if it were missing.
+func TestPollOnce_ReusesLineBuffer(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	r := newUnifiedLoggingReceiver(cfg, receivertest.NewNopSettings(component.MustNewType("macos_unified_logging")), new(consumertest.LogsSink), &fakeRunner{polls: []string{"", ""}})
+
+	if _, err := r.pollOnce(context.Background()); err != nil {
+		t.Fatalf("poll 1: %v", err)
+	}
+	first := r.br
+	if first == nil {
+		t.Fatal("no line reader retained after the first poll")
+	}
+	// Deliberately a literal, not maxLineBytes: comparing the constant to itself would pass for
+	// any value and would not have caught the 10MB -> 1MB regression this pins.
+	if got, want := first.Size(), 10*1024*1024; got != want {
+		t.Errorf("line buffer = %d bytes, want %d (upstream's cap; a lower value silently drops large events)", got, want)
+	}
+
+	if _, err := r.pollOnce(context.Background()); err != nil {
+		t.Fatalf("poll 2: %v", err)
+	}
+	if r.br != first {
+		t.Errorf("poll 2 allocated a new %d-byte line reader instead of resetting the existing one", maxLineBytes)
+	}
+}
+
 func TestReceiver_StartRequiresStorage(t *testing.T) {
 	cfg := createDefaultConfig().(*Config) // StorageID nil, live mode
 	r := newUnifiedLoggingReceiver(cfg, receivertest.NewNopSettings(component.MustNewType("macos_unified_logging")), new(consumertest.LogsSink), &fakeRunner{})
