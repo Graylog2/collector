@@ -6,6 +6,7 @@
 package macosunifiedloggingreceiver // import "github.com/Graylog2/collector/receiver/macosunifiedloggingreceiver"
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"time"
@@ -32,9 +33,7 @@ func (cfg *Config) Validate() error {
 	}
 
 	// Set default format if not specified
-	if cfg.Format == "" {
-		cfg.Format = "default"
-	}
+	cfg.Format = cmp.Or(cfg.Format, "default")
 
 	// Validate format
 	validFormats := map[string]bool{
