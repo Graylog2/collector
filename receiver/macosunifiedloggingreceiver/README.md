@@ -171,7 +171,14 @@ The receiver always invokes `log show --style ndjson` internally, regardless of 
   - `"Default"`, `"Info"` → `Info`
   - `"Debug"` → `Debug`
 
-**Attributes** — the following `macos.*` attributes are set when the corresponding field is present (string fields are omitted when empty; integer fields are always set):
+**Attributes** — the following `macos.*` attributes are set when the corresponding field is
+present in the source record. An attribute you receive always came from `log`; absent fields
+are omitted rather than defaulted. String fields are additionally omitted when empty, since
+`""` carries no information. Integer fields distinguish absent from `0`, because `0` is a real
+value — `userID: 0` is root and `processID: 0` is the kernel, and both are common in practice.
+
+`macos.machTimestamp` and `macos.threadID` are the only integers always present: the receiver
+rejects records without a `machTimestamp`, and the two together form the cursor's dedup key.
 
 | Attribute | Type | Source field |
 |-----------|------|-------------|
@@ -186,8 +193,8 @@ The receiver always invokes `log show --style ndjson` internally, regardless of 
 | `macos.formatString` | string | `formatString` |
 | `macos.bootUUID` | string | `bootUUID` |
 | `macos.processID` | int | `processID` |
-| `macos.threadID` | int | `threadID` |
-| `macos.machTimestamp` | int | `machTimestamp` |
+| `macos.threadID` | int | `threadID` (always present) |
+| `macos.machTimestamp` | int | `machTimestamp` (always present) |
 | `macos.activityIdentifier` | int | `activityIdentifier` |
 | `macos.parentActivityIdentifier` | int | `parentActivityIdentifier` |
 | `macos.creatorActivityID` | int | `creatorActivityID` |

@@ -86,6 +86,78 @@ func TestSetLogRecord(t *testing.T) {
 	}
 }
 
+// optionalIntAttrs are the integer attributes whose source field macOS may omit. Absent must
+// stay absent: encoding/json leaves a missing number at 0, and emitting that unconditionally
+// fabricates a value indistinguishable from a real one. userID is the sharpest case (0 is
+// root), but the rule is uniform so that an integer field added later inherits it rather than
+// silently reintroducing the bug.
+var optionalIntAttrs = []string{
+	"macos.processID",
+	"macos.userID",
+	"macos.activityIdentifier",
+	"macos.parentActivityIdentifier",
+	"macos.creatorActivityID",
+	"macos.traceID",
+	"macos.senderProgramCounter",
+}
+
+func TestSetLogRecord_AbsentIntegersAreOmitted(t *testing.T) {
+	// Only the fields parseLogEvent requires; every optional integer is absent. This is a real
+	// shape from `log show`: stateEvent, timesyncEvent and userActionEvent records carry no
+	// creatorActivityID at all.
+	line := `{"machTimestamp":7,"threadID":8,"timestamp":"2026-06-29 13:54:42.000000+0000","eventMessage":"m"}`
+	e, err := parseLogEvent([]byte(line))
+	if err != nil || e == nil {
+		t.Fatalf("parseLogEvent = (%v, %v)", e, err)
+	}
+	lr := plog.NewLogs().ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().LogRecords().AppendEmpty()
+	e.setLogRecord(lr, time.Unix(0, 0))
+	attrs := lr.Attributes()
+
+	for _, key := range optionalIntAttrs {
+		if v, ok := attrs.Get(key); ok {
+			t.Errorf("%s = %d, but the source record had no such field; absent must not render as 0", key, v.Int())
+		}
+	}
+	// machTimestamp and threadID are not optional — parseLogEvent rejects records without a
+	// machTimestamp, and both form the cursor's dedup key — so they are always emitted.
+	for _, tc := range []struct {
+		key  string
+		want int64
+	}{{"macos.machTimestamp", 7}, {"macos.threadID", 8}} {
+		if v, ok := attrs.Get(tc.key); !ok || v.Int() != tc.want {
+			t.Errorf("%s = (%v, present=%v), want %d: required fields are always emitted", tc.key, v.Int(), ok, tc.want)
+		}
+	}
+}
+
+// TestSetLogRecord_ExplicitZeroIntegersArePreserved is the other half of the rule. Suppressing
+// every 0 would trade one wrong answer for another: uid 0 is root and pid 0 is the kernel, and
+// both occur constantly in real output. Only *absence* may be suppressed.
+func TestSetLogRecord_ExplicitZeroIntegersArePreserved(t *testing.T) {
+	line := `{"machTimestamp":7,"threadID":8,"timestamp":"2026-06-29 13:54:42.000000+0000",` +
+		`"processID":0,"userID":0,"activityIdentifier":0,"parentActivityIdentifier":0,` +
+		`"creatorActivityID":0,"traceID":0,"senderProgramCounter":0}`
+	e, err := parseLogEvent([]byte(line))
+	if err != nil || e == nil {
+		t.Fatalf("parseLogEvent = (%v, %v)", e, err)
+	}
+	lr := plog.NewLogs().ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().LogRecords().AppendEmpty()
+	e.setLogRecord(lr, time.Unix(0, 0))
+	attrs := lr.Attributes()
+
+	for _, key := range optionalIntAttrs {
+		v, ok := attrs.Get(key)
+		if !ok {
+			t.Errorf("%s missing, but the source record explicitly sent 0 (for userID that is root, for processID the kernel)", key)
+			continue
+		}
+		if v.Int() != 0 {
+			t.Errorf("%s = %d, want 0", key, v.Int())
+		}
+	}
+}
+
 func TestWallSecond_TimezoneStable(t *testing.T) {
 	// 2026-06-29 15:54:42+0200 and 2026-06-29 13:54:42+0000 are the same instant.
 	plus2 := `{"machTimestamp":1,"threadID":2,"timestamp":"2026-06-29 15:54:42.500000+0200"}`

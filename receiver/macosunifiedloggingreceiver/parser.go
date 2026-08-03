@@ -14,7 +14,20 @@ import (
 
 const timestampLayout = "2006-01-02 15:04:05.000000-0700"
 
-// logEvent is one macOS unified-logging ndjson record (subset of fields we use).
+// logEvent is one macOS unified-logging ndjson record (subset of fields we use). Fields absent
+// from the record are not emitted as attributes, so a value in the pipeline always came from
+// the source.
+//
+// For strings that falls out of the zero value: "" carries no information, so putStr's empty
+// check covers both absent and empty. Integers need explicit presence, because 0 is a real
+// value — uid 0 is root, pid 0 is the kernel — and encoding/json cannot distinguish a missing
+// number from a zero one. Every optional integer is therefore a *int64 emitted via putInt.
+// Keep it that way when adding fields: a plain int64 silently reports 0 for every record the
+// source did not populate.
+//
+// MachTimestamp and ThreadID are the exception because they are not optional, not because the
+// rule bends: parseLogEvent rejects any record without a machTimestamp, and both make up the
+// cursor's dedup key, so a nil there would be a bug rather than a legitimate absence.
 type logEvent struct {
 	Timestamp                string `json:"timestamp"`
 	MachTimestamp            int64  `json:"machTimestamp"`
@@ -25,17 +38,17 @@ type logEvent struct {
 	EventType                string `json:"eventType"`
 	Subsystem                string `json:"subsystem"`
 	Category                 string `json:"category"`
-	ProcessID                int64  `json:"processID"`
-	UserID                   int64  `json:"userID"`
+	ProcessID                *int64 `json:"processID"`
+	UserID                   *int64 `json:"userID"`
 	ProcessImagePath         string `json:"processImagePath"`
 	ProcessImageUUID         string `json:"processImageUUID"`
 	SenderImagePath          string `json:"senderImagePath"`
 	SenderImageUUID          string `json:"senderImageUUID"`
-	SenderProgramCounter     int64  `json:"senderProgramCounter"`
-	ActivityIdentifier       int64  `json:"activityIdentifier"`
-	ParentActivityIdentifier int64  `json:"parentActivityIdentifier"`
-	CreatorActivityID        int64  `json:"creatorActivityID"`
-	TraceID                  int64  `json:"traceID"`
+	SenderProgramCounter     *int64 `json:"senderProgramCounter"`
+	ActivityIdentifier       *int64 `json:"activityIdentifier"`
+	ParentActivityIdentifier *int64 `json:"parentActivityIdentifier"`
+	CreatorActivityID        *int64 `json:"creatorActivityID"`
+	TraceID                  *int64 `json:"traceID"`
 	FormatString             string `json:"formatString"`
 
 	parsedTime       time.Time // offset-aware timestamp (from Timestamp)
@@ -99,19 +112,29 @@ func (e *logEvent) setLogRecord(lr plog.LogRecord, now time.Time) {
 	putStr(a, "macos.senderImageUUID", e.SenderImageUUID)
 	putStr(a, "macos.formatString", e.FormatString)
 	putStr(a, "macos.bootUUID", e.BootUUID)
-	a.PutInt("macos.processID", e.ProcessID)
-	a.PutInt("macos.userID", e.UserID)
+	// Always emitted: required, and the cursor's dedup key.
 	a.PutInt("macos.threadID", e.ThreadID)
 	a.PutInt("macos.machTimestamp", e.MachTimestamp)
-	a.PutInt("macos.activityIdentifier", e.ActivityIdentifier)
-	a.PutInt("macos.parentActivityIdentifier", e.ParentActivityIdentifier)
-	a.PutInt("macos.creatorActivityID", e.CreatorActivityID)
-	a.PutInt("macos.traceID", e.TraceID)
-	a.PutInt("macos.senderProgramCounter", e.SenderProgramCounter)
+	// Optional: emitted only when the source supplied them.
+	putInt(a, "macos.processID", e.ProcessID)
+	putInt(a, "macos.userID", e.UserID)
+	putInt(a, "macos.activityIdentifier", e.ActivityIdentifier)
+	putInt(a, "macos.parentActivityIdentifier", e.ParentActivityIdentifier)
+	putInt(a, "macos.creatorActivityID", e.CreatorActivityID)
+	putInt(a, "macos.traceID", e.TraceID)
+	putInt(a, "macos.senderProgramCounter", e.SenderProgramCounter)
 }
 
 func putStr(a pcommon.Map, key, val string) {
 	if val != "" {
 		a.PutStr(key, val)
+	}
+}
+
+// putInt is the integer counterpart to putStr: it distinguishes absent from zero, which putStr
+// does not need to do because "" carries no information while 0 does.
+func putInt(a pcommon.Map, key string, val *int64) {
+	if val != nil {
+		a.PutInt(key, *val)
 	}
 }
