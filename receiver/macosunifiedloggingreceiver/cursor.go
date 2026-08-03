@@ -4,9 +4,11 @@
 package macosunifiedloggingreceiver
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"slices"
 )
 
 // predicateHash is the identity a persisted cursor is valid for. If the configured
@@ -110,11 +112,18 @@ type cursorState struct {
 	PredicateHash string     `json:"predicateHash"`
 }
 
+// marshal serializes the committed cursor. Seen is sorted because it is built from a map, whose
+// iteration order Go randomizes: without sorting, marshaling the same cursor twice yields
+// different bytes, and pollOnce's "skip the write when the cursor has not changed" comparison
+// would never match for a boundary second holding more than one event.
 func (c *cursor) marshal() ([]byte, error) {
 	s := cursorState{BootUUID: c.bootUUID, WallSecond: c.wallSecond, PredicateHash: c.predicateHash}
 	for id := range c.seen {
 		s.Seen = append(s.Seen, id)
 	}
+	slices.SortFunc(s.Seen, func(a, b identity) int {
+		return cmp.Or(cmp.Compare(a.Mach, b.Mach), cmp.Compare(a.Thread, b.Thread))
+	})
 	return json.Marshal(s)
 }
 

@@ -23,6 +23,10 @@ type memStorage struct {
 	// outlive the call it belongs to.
 	sets         int
 	canceledSets int
+	// gets/canceledGets mirror the above for reads, so a test can prove Start propagates the
+	// context the collector gave it instead of substituting context.Background().
+	gets         int
+	canceledGets int
 }
 
 func newMemStorage() *memStorage { return &memStorage{m: map[string][]byte{}} }
@@ -43,9 +47,21 @@ func (s *memStorage) closeCount() int {
 	return s.closes
 }
 
-func (s *memStorage) Get(_ context.Context, key string) ([]byte, error) {
+// getStats reports how many Get calls arrived in total and how many arrived with an
+// already-canceled context.
+func (s *memStorage) getStats() (total, canceled int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.gets, s.canceledGets
+}
+
+func (s *memStorage) Get(ctx context.Context, key string) ([]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.gets++
+	if ctx.Err() != nil {
+		s.canceledGets++
+	}
 	return s.m[key], nil
 }
 

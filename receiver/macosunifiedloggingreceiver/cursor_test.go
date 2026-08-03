@@ -136,3 +136,44 @@ func TestCursor_RoundTrip(t *testing.T) {
 		t.Errorf("restored cursor must still dedupe boundary identities")
 	}
 }
+
+// TestCursorMarshal_Deterministic pins the property pollOnce's write-skipping depends on:
+// marshaling the same committed cursor twice must produce identical bytes. Seen is built from a
+// map, and Go randomizes map iteration order, so this only holds because marshal sorts. Without
+// it the skip check compares two different serializations of the same state and always writes.
+func TestCursorMarshal_Deterministic(t *testing.T) {
+	c := newCursor(predicateHash("p"))
+	c.beginPoll()
+	// Several identities in one second, inserted out of order — one entry could not detect a
+	// missing sort, and Go's map ordering only varies with enough keys.
+	var evs []*logEvent
+	for _, m := range []int64{900, 100, 500, 300, 700, 200} {
+		evs = append(evs, ev(m, m%3, "A", "2026-06-29 10:00:05.100000+0000"))
+	}
+	c.recordDelivered(evs)
+	c.commit()
+
+	first, err := c.marshal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range 50 {
+		again, aerr := c.marshal()
+		if aerr != nil {
+			t.Fatal(aerr)
+		}
+		if string(again) != string(first) {
+			t.Fatalf("marshal #%d differs from the first; seen must be sorted:\n first: %s\n again: %s", i+2, first, again)
+		}
+	}
+
+	// And the sorted form must still round-trip to the same committed state.
+	back, err := loadCursor(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.startArg() != c.startArg() || len(back.seen) != len(c.seen) {
+		t.Errorf("round-trip lost state: startArg %q vs %q, seen %d vs %d",
+			back.startArg(), c.startArg(), len(back.seen), len(c.seen))
+	}
+}

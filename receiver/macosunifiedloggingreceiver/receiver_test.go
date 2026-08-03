@@ -481,6 +481,84 @@ func TestPollOnce_ReusesLineBuffer(t *testing.T) {
 	}
 }
 
+// TestReceiver_StartPropagatesItsContext proves Start hands the collector's context to the
+// storage extension rather than substituting context.Background(), so a startup deadline or
+// cancellation reaches the backend. Cancelling before Start is the cheapest way to make the
+// propagated context observably distinct from a fresh Background one.
+//
+// The polling goroutine is a deliberate exception and must keep using Background: the collector
+// cancels the Start context as soon as Start returns, which would stop the receiver instantly.
+// TestReceiver_RestartOnSameHost covers that, since a poll has to survive Start returning for
+// its storage client to be closed exactly once per lifecycle.
+func TestReceiver_StartPropagatesItsContext(t *testing.T) {
+	sid := component.MustNewID("file_storage")
+	mem := newMemStorage()
+	host := fakeHost{exts: map[component.ID]component.Component{
+		sid: &fakeStorageExt{client: mem},
+	}}
+	cfg := createDefaultConfig().(*Config)
+	cfg.StorageID = &sid
+	r := newUnifiedLoggingReceiver(cfg, receivertest.NewNopSettings(component.MustNewType("macos_unified_logging")), new(consumertest.LogsSink), &fakeRunner{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := r.Start(ctx, host); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	t.Cleanup(func() { _ = r.Shutdown(context.Background()) })
+
+	total, canceled := mem.getStats()
+	if total == 0 {
+		t.Fatal("Start never read the cursor")
+	}
+	if canceled != total {
+		t.Errorf("%d of %d cursor reads saw a live context; Start must pass its own ctx through, not context.Background()", total-canceled, total)
+	}
+}
+
+// TestPollOnce_SkipsUnchangedCursorWrite proves an idle poll does not rewrite an identical
+// cursor. At the 1s floor the receiver polls forever, so persisting unconditionally means a
+// storage write every second for the lifetime of the collector even when nothing has happened.
+func TestPollOnce_SkipsUnchangedCursorWrite(t *testing.T) {
+	footer := "\n" + `{"count":1,"finished":1}`
+	// Two events in the same second, so the committed seen set holds more than one identity --
+	// exactly the case where an unsorted marshal would produce different bytes each call and
+	// defeat the comparison.
+	a := `{"timestamp":"2026-06-29 10:00:05.100000+0000","machTimestamp":500,"threadID":1,"bootUUID":"A","eventMessage":"a","messageType":"Default","eventType":"logEvent"}`
+	b := `{"timestamp":"2026-06-29 10:00:05.600000+0000","machTimestamp":550,"threadID":2,"bootUUID":"A","eventMessage":"b","messageType":"Default","eventType":"logEvent"}`
+	runner := &fakeRunner{polls: []string{
+		a + "\n" + b + footer, // poll 1: cursor advances -> must write
+		a + "\n" + b + footer, // poll 2: both dedup, cursor unchanged -> must skip
+		"",                    // poll 3: nothing at all, still unchanged -> must skip
+	}}
+
+	mem := newMemStorage()
+	cfg := createDefaultConfig().(*Config)
+	r := newUnifiedLoggingReceiver(cfg, receivertest.NewNopSettings(component.MustNewType("macos_unified_logging")), new(consumertest.LogsSink), runner)
+	r.storage = mem
+
+	for i := 1; i <= 3; i++ {
+		if _, err := r.pollOnce(context.Background()); err != nil {
+			t.Fatalf("poll %d: %v", i, err)
+		}
+		writes, _ := mem.setStats()
+		if writes != 1 {
+			t.Fatalf("after poll %d: %d cursor writes, want 1 (only the poll that advanced the cursor should write)", i, writes)
+		}
+	}
+
+	// A genuine advance must still be persisted, or the skip logic would strand the cursor.
+	runner.mu.Lock()
+	runner.polls = append(runner.polls, `{"timestamp":"2026-06-29 10:00:09.000000+0000","machTimestamp":900,"threadID":3,"bootUUID":"A","eventMessage":"c","messageType":"Default","eventType":"logEvent"}`+footer)
+	runner.mu.Unlock()
+	if _, err := r.pollOnce(context.Background()); err != nil {
+		t.Fatalf("poll 4: %v", err)
+	}
+	if writes, _ := mem.setStats(); writes != 2 {
+		t.Errorf("after an advancing poll: %d cursor writes, want 2", writes)
+	}
+}
+
 func TestReceiver_StartRequiresStorage(t *testing.T) {
 	cfg := createDefaultConfig().(*Config) // StorageID nil, live mode
 	r := newUnifiedLoggingReceiver(cfg, receivertest.NewNopSettings(component.MustNewType("macos_unified_logging")), new(consumertest.LogsSink), &fakeRunner{})

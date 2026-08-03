@@ -5,6 +5,7 @@ package macosunifiedloggingreceiver // import "github.com/Graylog2/collector/rec
 
 import (
 	"bufio"
+	"bytes"
 	"cmp"
 	"context"
 	"fmt"
@@ -48,6 +49,10 @@ type unifiedLoggingReceiver struct {
 	// br is the line reader, retained across polls so its maxLineBytes-sized buffer is
 	// allocated once rather than per poll. Only ever touched by the single poll goroutine.
 	br *bufio.Reader
+	// lastPersisted is the cursor as it was last successfully written, so an idle poll does not
+	// rewrite an identical value. Updated only after a successful Set, so a failed write is
+	// retried on the next poll. Only ever touched by the single poll goroutine.
+	lastPersisted []byte
 }
 
 func newUnifiedLoggingReceiver(cfg *Config, set receiver.Settings, consumer consumer.Logs, runner logRunner) *unifiedLoggingReceiver {
@@ -66,8 +71,11 @@ func newUnifiedLoggingReceiver(cfg *Config, set receiver.Settings, consumer cons
 	}
 }
 
-func (r *unifiedLoggingReceiver) Start(_ context.Context, host component.Host) error {
-	client, err := getStorageClient(context.Background(), host, r.cfg.StorageID, r.id)
+func (r *unifiedLoggingReceiver) Start(ctx context.Context, host component.Host) error {
+	// Startup work uses the collector's Start context so a startup deadline or cancellation is
+	// honored. The polling goroutine below deliberately does not: the collector cancels this
+	// context once Start returns, which would kill the receiver immediately.
+	client, err := getStorageClient(ctx, host, r.cfg.StorageID, r.id)
 	if err != nil {
 		return err
 	}
@@ -76,7 +84,7 @@ func (r *unifiedLoggingReceiver) Start(_ context.Context, host component.Host) e
 	// A read failure is fatal rather than a silent fresh start: we cannot tell "no cursor yet"
 	// from "cursor unreadable", and guessing the former re-ingests up to max_log_age of logs.
 	// For a bbolt-backed file_storage this means a corrupt or unreadable store, not a blip.
-	data, err := client.Get(context.Background(), cursorStorageKey)
+	data, err := client.Get(ctx, cursorStorageKey)
 	if err != nil {
 		return fmt.Errorf("could not read persisted cursor from storage extension %q: %w", *r.cfg.StorageID, err)
 	}
@@ -92,10 +100,10 @@ func (r *unifiedLoggingReceiver) Start(_ context.Context, host component.Host) e
 		}
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	pollCtx, cancel := context.WithCancel(context.Background())
 	r.cancel = cancel
 	r.wg.Go(func() {
-		r.readLogs(ctx)
+		r.readLogs(pollCtx)
 	})
 	return nil
 }
@@ -271,11 +279,17 @@ readLoop:
 	// poll is in flight, so by the time we get here on the final poll ctx is already done — and
 	// this is the one write that must not be lost: dropping it re-emits that poll's events as
 	// duplicates on the next start. Values (deadlines aside) still propagate.
+	//
+	// An idle poll leaves the cursor byte-identical (commit is a no-op on an empty batch), so the
+	// write is skipped — at a 1s floor that is otherwise a storage write per second forever.
+	// cursor.marshal sorts its seen set, without which these bytes would differ on every call.
 	r.cursor.commit()
 	if r.storage != nil {
-		if data, merr := r.cursor.marshal(); merr == nil {
+		if data, merr := r.cursor.marshal(); merr == nil && !bytes.Equal(data, r.lastPersisted) {
 			if serr := r.storage.Set(context.WithoutCancel(ctx), cursorStorageKey, data); serr != nil {
 				r.logger.Warn("failed to persist cursor", zap.Error(serr))
+			} else {
+				r.lastPersisted = data
 			}
 		}
 	}
