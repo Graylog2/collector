@@ -18,6 +18,7 @@
 package supervisor
 
 import (
+	"cmp"
 	"os"
 	"runtime"
 	"strings"
@@ -68,13 +69,39 @@ func (s *Supervisor) nonIdentifyingAttributes(hostname string) []*protobufs.KeyV
 	return attrs
 }
 
+// linuxPlatformNames maps gopsutil platform identifiers to product names
+// where simple title-casing gets the spelling wrong. Identifiers come from
+// distro release files or the ID field in /etc/os-release.
+var linuxPlatformNames = map[string]string{
+	"almalinux":           "AlmaLinux",
+	"amazon":              "Amazon Linux",
+	"amzn":                "Amazon Linux",
+	"centos":              "CentOS",
+	"cloudlinux":          "CloudLinux",
+	"linuxmint":           "Linux Mint",
+	"nixos":               "NixOS",
+	"ol":                  "Oracle Linux",
+	"opensuse":            "openSUSE",
+	"opensuse-leap":       "openSUSE Leap",
+	"opensuse-tumbleweed": "openSUSE Tumbleweed",
+	"oracle":              "Oracle Linux",
+	"redhat":              "Red Hat Enterprise Linux",
+	"rhel":                "Red Hat Enterprise Linux",
+	"rocky":               "Rocky Linux",
+	"scientific":          "Scientific Linux",
+	"sled":                "SUSE Linux Enterprise Desktop",
+	"sles":                "SUSE Linux Enterprise Server",
+	"suse":                "SUSE",
+}
+
 // getOSDescription builds an "os.description" value for each platform.
 func getOSDescription(info *host.InfoStat) string {
 	switch info.OS {
 	case "darwin":
 		return strings.TrimSpace("macOS " + info.PlatformVersion)
 	case "linux":
-		return strings.TrimSpace(cases.Title(language.English).String(info.Platform) + " " + info.PlatformVersion)
+		name := cmp.Or(linuxPlatformNames[info.Platform], cases.Title(language.English).String(info.Platform))
+		return strings.TrimSpace(name + " " + info.PlatformVersion)
 	case "windows":
 		return strings.TrimSpace(info.Platform + " " + info.PlatformVersion)
 	default:
