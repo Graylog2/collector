@@ -657,3 +657,36 @@ func TestLiveArgs_StartAnchoredUTC(t *testing.T) {
 		t.Errorf("liveArgs = %v, want --start anchored with +0000", args)
 	}
 }
+
+// TestLiveArgs_PredicateIsASingleArg pins the property that makes the predicate safe to accept
+// unvalidated. It reaches `log` as exactly one argv element, so it cannot contribute additional
+// flags — a fleet-pushed predicate can filter, never change the invocation. Building the arg
+// list by string concatenation and splitting (rather than appending elements) would break this
+// silently, since a predicate without spaces would still work.
+func TestLiveArgs_PredicateIsASingleArg(t *testing.T) {
+	// Spaces, quotes, and characters that would matter to a shell but are inert in argv.
+	p := "eventMessage CONTAINS 'a b; $HOME `x` --archive /tmp/evil'"
+	r := &unifiedLoggingReceiver{cfg: &Config{Predicate: p}}
+	args := r.liveArgs("2026-06-29 13:54:42")
+
+	if !hasFlag(args, "--predicate", p) {
+		t.Fatalf("predicate must occupy exactly one argv element; args = %#v", args)
+	}
+	// Nothing from the predicate may appear as its own element.
+	for i, a := range args {
+		if a == "--archive" || a == "/tmp/evil" {
+			t.Errorf("args[%d] = %q: predicate content leaked into a separate argv element", i, a)
+		}
+	}
+}
+
+// TestLiveArgs_NoPredicateOmitsTheFlag guards the empty case: passing --predicate "" would make
+// `log` reject the invocation rather than read unfiltered.
+func TestLiveArgs_NoPredicateOmitsTheFlag(t *testing.T) {
+	r := &unifiedLoggingReceiver{cfg: &Config{}}
+	for _, a := range r.liveArgs("2026-06-29 13:54:42") {
+		if a == "--predicate" {
+			t.Error("--predicate must be omitted entirely when no predicate is configured")
+		}
+	}
+}

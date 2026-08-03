@@ -8,101 +8,22 @@ package macosunifiedloggingreceiver // import "github.com/Graylog2/collector/rec
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 )
-
-// Valid field names for macOS unified logging predicates
-var validPredicateFields = map[string]bool{
-	"activityIdentifier":             true,
-	"bootUUID":                       true,
-	"category":                       true,
-	"composedMessage":                true,
-	"continuousNanosecondsSinceBoot": true,
-	"creatorActivityIdentifier":      true,
-	"creatorProcessUniqueIdentifier": true,
-	"date":                           true,
-	"formatString":                   true,
-	"logType":                        true,
-	"machContinuousTimestamp":        true,
-	"parentActivityIdentifier":       true,
-	"process":                        true,
-	"processIdentifier":              true,
-	"processImagePath":               true,
-	"processImageUUID":               true,
-	"sender":                         true,
-	"senderImageOffset":              true,
-	"senderImagePath":                true,
-	"senderImageUUID":                true,
-	"signpostIdentifier":             true,
-	"signpostScope":                  true,
-	"signpostType":                   true,
-	"size":                           true,
-	"subsystem":                      true,
-	"threadIdentifier":               true,
-	"timeToLive":                     true,
-	"traceIdentifier":                true,
-	"transitionActivityIdentifier":   true,
-	"type":                           true,
-}
-
-// Valid event types
-var validEventTypes = map[string]bool{
-	"activityCreateEvent":     true,
-	"activityTransitionEvent": true,
-	"userActionEvent":         true,
-	"traceEvent":              true,
-	"logEvent":                true,
-	"timesyncEvent":           true,
-	"signpostEvent":           true,
-	"lossEvent":               true,
-	"stateEvent":              true,
-}
-
-// Valid log types
-var validLogTypes = map[string]bool{
-	"default": true,
-	"release": true,
-	"info":    true,
-	"debug":   true,
-	"error":   true,
-	"fault":   true,
-}
-
-// Valid signpost scopes
-var validSignpostScopes = map[string]bool{
-	"thread":  true,
-	"process": true,
-	"system":  true,
-}
-
-// Valid signpost types
-var validSignpostTypes = map[string]bool{
-	"event": true,
-	"begin": true,
-	"end":   true,
-}
-
-// Valid comparison operators
-var validOperators = []string{
-	"AND", "&&", "&",
-	"OR", "||",
-	"NOT", "!",
-	"!=", "<>", "==", "=",
-	"<", ">", "<=", "=<", ">=", "=>",
-	"BEGINSWITH",
-	"CONTAINS",
-	"ENDSWITH",
-	"LIKE",
-	"MATCHES",
-}
 
 // minPollFloor is the lowest accepted min_poll_interval. `log show` writes a record for its
 // own invocation, so a sub-100ms floor lets the receiver's own reads sustain a self-feeding
 // hot loop: each poll observes the previous poll and immediately schedules another.
 const minPollFloor = 100 * time.Millisecond
 
-// Validate checks the Config is valid
+// Validate checks the Config is valid.
+//
+// The predicate is deliberately not validated here. `log` has a real NSPredicate parser and is
+// the only authority on what it accepts; an in-process approximation was both too strict
+// (rejecting `messageType == 'Error'`, and any filter whose string literal contained `$`, `;`,
+// `|` or a backtick) and too permissive (accepting `processIDX == 'garbage'`, because it matched
+// field names as substrings of the whole expression). A bad predicate now surfaces on the first
+// poll with `log`'s own diagnostic. See the predicate notes in README.md.
 func (cfg *Config) Validate() error {
 	// Checked here as well as in Start so `otelcol validate` rejects the config offline,
 	// instead of the collector failing on the first startup attempt.
@@ -127,13 +48,6 @@ func (cfg *Config) Validate() error {
 		return fmt.Errorf("invalid format: %s (valid options: default, ndjson, json, syslog, compact)", cfg.Format)
 	}
 
-	// Validate predicate to prevent invalid characters
-	if cfg.Predicate != "" {
-		if err := validatePredicate(&cfg.Predicate); err != nil {
-			return fmt.Errorf("invalid predicate: %w", err)
-		}
-	}
-
 	// Validate time format if specified
 	if cfg.StartTime != "" {
 		if _, err := time.Parse("2006-01-02 15:04:05", cfg.StartTime); err != nil {
@@ -154,166 +68,4 @@ func (cfg *Config) Validate() error {
 	}
 
 	return nil
-}
-
-// validatePredicate performs basic validation on the predicate expression
-func validatePredicate(predicate *string) error {
-	var errs error
-
-	// Check for balanced quotes
-	if !hasBalancedQuotes(*predicate) {
-		errs = errors.Join(errs, errors.New("unbalanced quotes in predicate expression"))
-	}
-
-	// Check for balanced parentheses
-	if !hasBalancedParentheses(*predicate) {
-		errs = errors.Join(errs, errors.New("unbalanced parentheses in predicate expression"))
-	}
-
-	// Validate that at least one valid field name appears in the predicate
-	hasValidField := false
-	for field := range validPredicateFields {
-		if strings.Contains(*predicate, field) {
-			hasValidField = true
-			break
-		}
-	}
-	if !hasValidField {
-		errs = errors.Join(errs, errors.New("predicate must contain at least one valid field name"))
-	}
-
-	hasValidOperator := false
-	for _, op := range validOperators {
-		if strings.Contains(*predicate, op) {
-			hasValidOperator = true
-			break
-		}
-	}
-	if !hasValidOperator {
-		errs = errors.Join(errs, errors.New("predicate must contain at least one valid operator"))
-	}
-
-	predicateUsesEventType := strings.Contains(*predicate, "type")
-	if predicateUsesEventType {
-		if !hasValidEventType(*predicate) {
-			errs = errors.Join(errs, errors.New("predicate must contain at least one valid event type"))
-		}
-	}
-
-	predicateUsesLogType := strings.Contains(*predicate, "logType")
-	if predicateUsesLogType {
-		if !hasValidLogType(*predicate) {
-			errs = errors.Join(errs, errors.New("predicate must contain at least one valid log type"))
-		}
-	}
-
-	predicateUsesSignpostScope := strings.Contains(*predicate, "signpostScope")
-	if predicateUsesSignpostScope {
-		if !hasValidSignpostScope(*predicate) {
-			errs = errors.Join(errs, errors.New("predicate must contain at least one valid signpost scope"))
-		}
-	}
-
-	predicateUsesSignpostType := strings.Contains(*predicate, "signpostType")
-	if predicateUsesSignpostType {
-		if !hasValidSignpostType(*predicate) {
-			errs = errors.Join(errs, errors.New("predicate must contain at least one valid signpost type"))
-		}
-	}
-
-	// Normalize && to AND to prevent command chaining
-	*predicate = strings.ReplaceAll(*predicate, "&&", "AND")
-	// Normalize || to OR to prevent command chaining
-	*predicate = strings.ReplaceAll(*predicate, "||", "OR")
-
-	invalidChars := []string{
-		";",  // Command separator (not valid in predicates)
-		"|",  // Pipe (not valid in predicates - use AND/OR instead)
-		"$",  // Variable expansion (not valid in predicates)
-		"`",  // Backtick command substitution (not valid in predicates)
-		"\n", // Newline (not valid in predicates)
-		"\r", // Carriage return (not valid in predicates)
-		">>", // Append redirect (not valid in predicates)
-		"<<", // Here document (not valid in predicates)
-	}
-	for _, char := range invalidChars {
-		if strings.Contains(*predicate, char) {
-			return fmt.Errorf("predicate contains invalid character: %q", char)
-		}
-	}
-
-	return errs
-}
-
-func hasValidEventType(predicate string) bool {
-	for eventType := range validEventTypes {
-		if strings.Contains(predicate, eventType) {
-			return true
-		}
-	}
-	return false
-}
-
-func hasValidLogType(predicate string) bool {
-	for logType := range validLogTypes {
-		if strings.Contains(predicate, logType) {
-			return true
-		}
-	}
-	return false
-}
-
-func hasValidSignpostScope(predicate string) bool {
-	for signpostScope := range validSignpostScopes {
-		if strings.Contains(predicate, signpostScope) {
-			return true
-		}
-	}
-	return false
-}
-
-func hasValidSignpostType(predicate string) bool {
-	for signpostType := range validSignpostTypes {
-		if strings.Contains(predicate, signpostType) {
-			return true
-		}
-	}
-	return false
-}
-
-// hasBalancedQuotes checks if the string has balanced double quotes
-func hasBalancedQuotes(s string) bool {
-	count := 0
-	escaped := false
-	for _, ch := range s {
-		if escaped {
-			escaped = false
-			continue
-		}
-		if ch == '\\' {
-			escaped = true
-			continue
-		}
-		if ch == '"' {
-			count++
-		}
-	}
-	return count%2 == 0
-}
-
-// hasBalancedParentheses checks if the string has balanced parentheses
-func hasBalancedParentheses(s string) bool {
-	count := 0
-	for _, ch := range s {
-		switch ch {
-		case '(':
-			count++
-		case ')':
-			count--
-		}
-		if count < 0 {
-			return false
-		}
-	}
-	return count == 0
 }
