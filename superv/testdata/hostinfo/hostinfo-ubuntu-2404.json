@@ -1,0 +1,15 @@
+{
+  "hostname": "nc",
+  "uptime": 703486,
+  "bootTime": 1784799975,
+  "procs": 148,
+  "os": "linux",
+  "platform": "ubuntu",
+  "platformFamily": "debian",
+  "platformVersion": "24.04",
+  "kernelVersion": "6.8.0-136-generic",
+  "kernelArch": "x86_64",
+  "virtualizationSystem": "",
+  "virtualizationRole": "guest",
+  "hostId": "6eb16cba-b843-4aa0-9d63-d1268ff85afa"
+}

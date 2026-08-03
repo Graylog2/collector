@@ -30,7 +30,12 @@ import (
 	"github.com/Graylog2/collector/superv/supervisor/connection"
 	"github.com/Graylog2/collector/superv/version"
 	"github.com/open-telemetry/opamp-go/protobufs"
+	"github.com/shirou/gopsutil/v4/host"
+	"go.opentelemetry.io/otel/attribute"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.uber.org/zap"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // createAndStartClient creates a new OpAMP client with current config, sets it up, and starts it.
@@ -210,51 +215,62 @@ func (s *Supervisor) createOpAMPCallbacks() *opamp.Callbacks {
 	}
 }
 
+func stringKv(key, value string) *protobufs.KeyValue {
+	return &protobufs.KeyValue{
+		Key:   key,
+		Value: &protobufs.AnyValue{Value: &protobufs.AnyValue_StringValue{StringValue: value}},
+	}
+}
+
+func attributeStringKv(key attribute.Key, value string) *protobufs.KeyValue {
+	return stringKv(string(key), value)
+}
+
 // createAgentDescription creates the initial agent description for OpAMP.
 func (s *Supervisor) createAgentDescription() *protobufs.AgentDescription {
 	hostname, _ := os.Hostname()
 
 	return &protobufs.AgentDescription{
 		IdentifyingAttributes: []*protobufs.KeyValue{
-			{
-				Key:   "service.name",
-				Value: &protobufs.AnyValue{Value: &protobufs.AnyValue_StringValue{StringValue: ServiceName}},
-			},
-			{
-				Key:   "service.instance.id",
-				Value: &protobufs.AnyValue{Value: &protobufs.AnyValue_StringValue{StringValue: s.instanceUID}},
-			},
+			attributeStringKv(semconv.ServiceNameKey, ServiceName),
+			attributeStringKv(semconv.ServiceInstanceIDKey, s.instanceUID),
 		},
 		NonIdentifyingAttributes: s.nonIdentifyingAttributes(hostname),
+	}
+}
+
+// getOSDescription builds an "os.description" value for each platform.
+func getOSDescription(info *host.InfoStat) string {
+	switch runtime.GOOS {
+	case "darwin":
+		return "macOS " + info.PlatformVersion
+	case "linux":
+		return cases.Title(language.English).String(info.Platform) + " " + info.PlatformVersion
+	case "windows":
+		return info.Platform + " " + info.PlatformVersion
+	default:
+		return "Unknown " + runtime.GOOS
 	}
 }
 
 // nonIdentifyingAttributes builds the list of non-identifying attributes for the agent description.
 func (s *Supervisor) nonIdentifyingAttributes(hostname string) []*protobufs.KeyValue {
 	attrs := []*protobufs.KeyValue{
-		{
-			Key:   "service.version",
-			Value: &protobufs.AnyValue{Value: &protobufs.AnyValue_StringValue{StringValue: version.Version()}},
-		},
-		{
-			Key:   "host.name",
-			Value: &protobufs.AnyValue{Value: &protobufs.AnyValue_StringValue{StringValue: hostname}},
-		},
-		{
-			Key:   "os.type",
-			Value: &protobufs.AnyValue{Value: &protobufs.AnyValue_StringValue{StringValue: runtime.GOOS}},
-		},
-		{
-			Key:   "host.arch",
-			Value: &protobufs.AnyValue{Value: &protobufs.AnyValue_StringValue{StringValue: runtime.GOARCH}},
-		},
+		attributeStringKv(semconv.HostArchKey, runtime.GOARCH),
+		attributeStringKv(semconv.HostNameKey, hostname),
+		attributeStringKv(semconv.OSTypeKey, runtime.GOOS),
+		attributeStringKv(semconv.ServiceVersionKey, version.Version()),
+	}
+
+	info, err := host.Info()
+	if err == nil {
+		attrs = append(attrs, attributeStringKv(semconv.OSDescriptionKey, getOSDescription(info)))
+	} else {
+		s.logger.Warn("Failed to retrieve host information", zap.Error(err))
 	}
 
 	if s.collectorVersion != "" {
-		attrs = append(attrs, &protobufs.KeyValue{
-			Key:   "collector.version",
-			Value: &protobufs.AnyValue{Value: &protobufs.AnyValue_StringValue{StringValue: s.collectorVersion}},
-		})
+		attrs = append(attrs, stringKv("collector.version", s.collectorVersion))
 	}
 
 	return attrs
