@@ -27,7 +27,7 @@ import (
 	"strings"
 )
 
-// OSRelease holds a subset of the fields defined in the os-release.
+// OSRelease holds a subset of the fields defined in the os-release
 // specification: https://www.freedesktop.org/software/systemd/man/latest/os-release.html
 type OSRelease struct {
 	Name       string // NAME
