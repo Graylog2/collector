@@ -18,6 +18,7 @@
 package sysinfo
 
 import (
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -332,7 +333,8 @@ func TestParseOSReleaseFromFixture(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.file, func(t *testing.T) {
-			file, err := testfixtures.OsReleaseFS.Open(filepath.Join("testdata", "os-release", tt.file))
+			// Using path.Join to avoid backslashes on windows. The embed.FS always uses slashes.
+			file, err := testfixtures.OsReleaseFS.Open(path.Join("testdata", "os-release", tt.file))
 			require.NoError(t, err)
 			got, err := ParseOSRelease(file)
 			require.NoError(t, err)
@@ -342,7 +344,8 @@ func TestParseOSReleaseFromFixture(t *testing.T) {
 	}
 
 	t.Run("all testdata files are covered", func(t *testing.T) {
-		files, err := testfixtures.OsReleaseFS.ReadDir(filepath.Join("testdata", "os-release"))
+		// Using path.Join to avoid backslashes on windows. The embed.FS always uses slashes.
+		files, err := testfixtures.OsReleaseFS.ReadDir(path.Join("testdata", "os-release"))
 		require.NoError(t, err)
 		require.NotEmpty(t, files)
 
