@@ -19,7 +19,6 @@ package supervisor
 
 import (
 	"cmp"
-	"fmt"
 	"os"
 	"runtime"
 	"strings"
@@ -90,7 +89,7 @@ func getOSDescription(goos string, infoSupplier func() (sysinfo.PlatformInfo, er
 
 	info, err := infoSupplier()
 	if err != nil {
-		return "", fmt.Errorf("couldn't read host info: %w", err)
+		return "", err
 	}
 	switch goos {
 	case "darwin":
