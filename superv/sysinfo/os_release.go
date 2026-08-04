@@ -41,9 +41,13 @@ type OSRelease struct {
 // GetOSRelease reads the os-release information of the current host,
 // preferring /etc/os-release over the /usr/lib/os-release fallback.
 func GetOSRelease() (OSRelease, error) {
-	release, err := ReadOSRelease("/etc/os-release")
+	return getOSRelease("/etc/os-release", "/usr/lib/os-release")
+}
+
+func getOSRelease(etcPath, usrLibPath string) (OSRelease, error) {
+	release, err := ReadOSRelease(etcPath)
 	if errors.Is(err, fs.ErrNotExist) {
-		return ReadOSRelease("/usr/lib/os-release")
+		return ReadOSRelease(usrLibPath)
 	}
 	return release, err
 }
@@ -99,10 +103,22 @@ func ParseOSRelease(r io.Reader) (OSRelease, error) {
 	return release, nil
 }
 
-// trimQuotes removes matching surrounding double or single quotes.
+// unescaper reverses the backslash escapes that shell-style double quoting
+// requires for "$", quotes, backslashes, and backticks. Backslashes before
+// any other character are retained, matching shell semantics.
+var unescaper = strings.NewReplacer(`\"`, `"`, `\\`, `\`, `\$`, `$`, "\\`", "`")
+
+// trimQuotes removes matching surrounding double or single quotes. Escape
+// sequences are only interpreted inside double quotes; single-quoted values
+// are taken literally. Trailing content after a closing quote is kept
+// verbatim (such input is invalid per the os-release spec).
 func trimQuotes(s string) string {
 	if len(s) >= 2 && (s[0] == '"' || s[0] == '\'') && s[len(s)-1] == s[0] {
-		return s[1 : len(s)-1]
+		inner := s[1 : len(s)-1]
+		if s[0] == '"' {
+			return unescaper.Replace(inner)
+		}
+		return inner
 	}
 	return s
 }

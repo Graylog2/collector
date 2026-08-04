@@ -18,6 +18,7 @@
 package sysinfo
 
 import (
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -90,6 +91,31 @@ func TestParseOSRelease(t *testing.T) {
 			name:  "empty input",
 			input: "",
 			want:  OSRelease{},
+		},
+		{
+			name:  "escaped quotes in double-quoted value",
+			input: `NAME="Foo \"Bar\""`,
+			want:  OSRelease{Name: `Foo "Bar"`},
+		},
+		{
+			name:  "escaped backslash and dollar in double-quoted value",
+			input: `NAME="a \\ b \$c"`,
+			want:  OSRelease{Name: `a \ b $c`},
+		},
+		{
+			name:  "escaped backtick in double-quoted value",
+			input: "NAME=\"run \\`cmd\\`\"",
+			want:  OSRelease{Name: "run `cmd`"},
+		},
+		{
+			name:  "backslash before other characters is retained",
+			input: `NAME="a\nb"`,
+			want:  OSRelease{Name: `a\nb`},
+		},
+		{
+			name:  "escapes are literal in single-quoted values",
+			input: `NAME='a \"b\"'`,
+			want:  OSRelease{Name: `a \"b\"`},
 		},
 	}
 
@@ -354,12 +380,47 @@ func TestParseOSReleaseFromFixture(t *testing.T) {
 			covered[tt.file] = true
 		}
 		for _, file := range files {
-			assert.True(t, covered[filepath.Base(file.Name())], "missing test case for %s", file)
+			assert.True(t, covered[file.Name()], "missing test case for %s", file.Name())
 		}
 	})
 
 	t.Run("missing file returns error", func(t *testing.T) {
 		_, err := ReadOSRelease(filepath.Join(t.TempDir(), "does-not-exist"))
+		require.Error(t, err)
+	})
+}
+
+func TestGetOSRelease(t *testing.T) {
+	writeFile := func(t *testing.T, content string) string {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "os-release")
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+		return path
+	}
+	missing := func(t *testing.T) string {
+		t.Helper()
+		return filepath.Join(t.TempDir(), "does-not-exist")
+	}
+
+	t.Run("prefers the etc path", func(t *testing.T) {
+		etcPath := writeFile(t, "ID=etc\n")
+		usrLibPath := writeFile(t, "ID=usrlib\n")
+
+		release, err := getOSRelease(etcPath, usrLibPath)
+		require.NoError(t, err)
+		assert.Equal(t, "etc", release.ID)
+	})
+
+	t.Run("falls back to the usr lib path when the etc path is missing", func(t *testing.T) {
+		usrLibPath := writeFile(t, "ID=usrlib\n")
+
+		release, err := getOSRelease(missing(t), usrLibPath)
+		require.NoError(t, err)
+		assert.Equal(t, "usrlib", release.ID)
+	})
+
+	t.Run("returns an error when both paths are missing", func(t *testing.T) {
+		_, err := getOSRelease(missing(t), missing(t))
 		require.Error(t, err)
 	})
 }

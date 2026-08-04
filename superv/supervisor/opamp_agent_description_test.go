@@ -19,12 +19,15 @@ package supervisor
 
 import (
 	"encoding/json"
+	"errors"
 	"path"
 	"testing"
 
 	"github.com/Graylog2/collector/superv/internal/testfixtures"
 	"github.com/Graylog2/collector/superv/internal/testsysinfo"
+	"github.com/Graylog2/collector/superv/sysinfo"
 	"github.com/shirou/gopsutil/v4/host"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -110,6 +113,21 @@ func TestGetOSDescription(t *testing.T) {
 			require.Equal(t, tc.want, description)
 		})
 	}
+
+	t.Run("all hostinfo testdata files are covered", func(t *testing.T) {
+		// Using path.Join to avoid backslashes on windows. The embed.FS always uses slashes.
+		files, err := testfixtures.HostInfoFS.ReadDir(path.Join("testdata", "hostinfo"))
+		require.NoError(t, err)
+		require.NotEmpty(t, files)
+
+		covered := make(map[string]bool, len(tests))
+		for _, tc := range tests {
+			covered["hostinfo-"+tc.fixture+".json"] = true
+		}
+		for _, file := range files {
+			assert.True(t, covered[file.Name()], "missing test case for %s", file.Name())
+		}
+	})
 }
 
 func TestGetOSDescription_UnknownOS(t *testing.T) {
@@ -121,5 +139,50 @@ func TestGetOSDescription_UnknownOS(t *testing.T) {
 		}, nil
 	}, testsysinfo.GetOSReleaseSupplier(t, ""))
 	require.NoError(t, err)
+	require.Equal(t, "freebsd 14.1", description)
+}
+
+func TestGetOSDescription_UnknownOSWithoutPlatform(t *testing.T) {
+	description, err := getOSDescription("freebsd", func() (*host.InfoStat, error) {
+		return &host.InfoStat{OS: "freebsd"}, nil
+	}, testsysinfo.GetOSReleaseSupplier(t, ""))
+	require.NoError(t, err)
 	require.Equal(t, "Unknown freebsd", description)
+}
+
+func TestGetOSDescription_LinuxPrettyNameFallback(t *testing.T) {
+	description, err := getOSDescription("linux", nil, func() (sysinfo.OSRelease, error) {
+		return sysinfo.OSRelease{PrettyName: "Foo Linux 1.0 (Bar)"}, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Foo Linux 1.0 (Bar)", description)
+}
+
+func TestGetOSDescription_LinuxEmptyOSReleaseFallsBackToHostInfo(t *testing.T) {
+	description, err := getOSDescription("linux", func() (*host.InfoStat, error) {
+		return &host.InfoStat{OS: "linux", Platform: "ubuntu", PlatformVersion: "24.04"}, nil
+	}, func() (sysinfo.OSRelease, error) {
+		return sysinfo.OSRelease{}, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, "ubuntu 24.04", description)
+}
+
+func TestGetOSDescription_LinuxOSReleaseErrorFallsBackToHostInfo(t *testing.T) {
+	description, err := getOSDescription("linux", func() (*host.InfoStat, error) {
+		return &host.InfoStat{OS: "linux", Platform: "ubuntu", PlatformVersion: "24.04"}, nil
+	}, func() (sysinfo.OSRelease, error) {
+		return sysinfo.OSRelease{}, errors.New("no os-release file")
+	})
+	require.NoError(t, err)
+	require.Equal(t, "ubuntu 24.04", description)
+}
+
+func TestGetOSDescription_LinuxAllSourcesFailing(t *testing.T) {
+	_, err := getOSDescription("linux", func() (*host.InfoStat, error) {
+		return nil, errors.New("no host info")
+	}, func() (sysinfo.OSRelease, error) {
+		return sysinfo.OSRelease{}, errors.New("no os-release file")
+	})
+	require.Error(t, err)
 }

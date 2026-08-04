@@ -18,6 +18,7 @@
 package supervisor
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"runtime"
@@ -57,7 +58,7 @@ func (s *Supervisor) nonIdentifyingAttributes(hostname string) []*protobufs.KeyV
 	if description, err := getOSDescription(runtime.GOOS, host.Info, sysinfo.GetOSRelease); err == nil {
 		attrs = append(attrs, attributeStringKv(semconv.OSDescriptionKey, description))
 	} else {
-		s.logger.Warn("Failed to retrieve host information", zap.Error(err))
+		s.logger.Warn("Failed to determine the OS description", zap.Error(err))
 	}
 
 	if s.collectorVersion != "" {
@@ -68,26 +69,31 @@ func (s *Supervisor) nonIdentifyingAttributes(hostname string) []*protobufs.KeyV
 }
 
 // getOSDescription builds an "os.description" value for each platform.
-func getOSDescription(os string, infoSupplier func() (*host.InfoStat, error), osReleaseSupplier func() (sysinfo.OSRelease, error)) (string, error) {
-	// On Linux we use data from the /etc/os-release file to get properly formatted distribution names.
-	if os == "linux" {
-		osRelease, err := osReleaseSupplier()
-		if err != nil {
-			return "", fmt.Errorf("couldn't read os-release info: %w", err)
+func getOSDescription(goos string, infoSupplier func() (*host.InfoStat, error), osReleaseSupplier func() (sysinfo.OSRelease, error)) (string, error) {
+	// On Linux we prefer data from the /etc/os-release file to get properly
+	// formatted distribution names. All os-release fields are optional per the
+	// spec, so we fall through to the generic host info data if the file can't
+	// be read or yields nothing.
+	if goos == "linux" {
+		if osRelease, err := osReleaseSupplier(); err == nil {
+			description := cmp.Or(strings.TrimSpace(osRelease.Name+" "+osRelease.VersionID), osRelease.PrettyName)
+			if description != "" {
+				return description, nil
+			}
 		}
-		return strings.TrimSpace(osRelease.Name + " " + osRelease.VersionID), nil
 	}
-	if info, err := infoSupplier(); err == nil {
-		switch os {
-		case "darwin":
-			return strings.TrimSpace("macOS " + info.PlatformVersion), nil
-		case "windows":
-			return strings.TrimSpace(info.Platform + " " + info.PlatformVersion), nil
-		default:
-			return "Unknown " + info.OS, nil
-		}
-	} else {
+
+	info, err := infoSupplier()
+	if err != nil {
 		return "", fmt.Errorf("couldn't read host info: %w", err)
+	}
+	switch goos {
+	case "darwin":
+		return strings.TrimSpace("macOS " + info.PlatformVersion), nil
+	case "windows":
+		return strings.TrimSpace(info.Platform + " " + info.PlatformVersion), nil
+	default:
+		return cmp.Or(strings.TrimSpace(info.Platform+" "+info.PlatformVersion), "Unknown "+info.OS), nil
 	}
 }
 
