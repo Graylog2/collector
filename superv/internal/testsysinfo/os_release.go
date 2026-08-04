@@ -39,8 +39,7 @@ func GetOSReleaseSupplier(t *testing.T, name string) func() (sysinfo.OSRelease, 
 
 	// Using path.Join to avoid backslashes on windows. The embed.FS always uses slashes.
 	file, err := testfixtures.OsReleaseFS.Open(path.Join("testdata", "os-release", "os-release-"+name+".txt"))
-	files, _ := testfixtures.OsReleaseFS.ReadDir("testdata")
-	require.NoError(t, err, "available files: %v", files)
+	require.NoError(t, err)
 
 	osRelease, err := sysinfo.ParseOSRelease(file)
 	require.NoError(t, err)
