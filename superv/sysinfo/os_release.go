@@ -19,8 +19,10 @@ package sysinfo
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"strings"
 )
@@ -40,7 +42,7 @@ type OSRelease struct {
 // preferring /etc/os-release over the /usr/lib/os-release fallback.
 func GetOSRelease() (OSRelease, error) {
 	release, err := ReadOSRelease("/etc/os-release")
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return ReadOSRelease("/usr/lib/os-release")
 	}
 	return release, err

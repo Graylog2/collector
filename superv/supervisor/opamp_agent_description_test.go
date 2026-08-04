@@ -26,11 +26,13 @@ import (
 	"github.com/Graylog2/collector/superv/internal/testsysinfo"
 	"github.com/shirou/gopsutil/v4/host"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestSupervisor_NonIdentifyingAttributes_WithCollectorVersion(t *testing.T) {
 	s := &Supervisor{
 		collectorVersion: "2.0.0-alpha.0",
+		logger:           zap.NewNop(),
 	}
 
 	attrs := s.nonIdentifyingAttributes("test-host")
@@ -48,7 +50,7 @@ func TestSupervisor_NonIdentifyingAttributes_WithCollectorVersion(t *testing.T) 
 }
 
 func TestSupervisor_NonIdentifyingAttributes_WithoutCollectorVersion(t *testing.T) {
-	s := &Supervisor{}
+	s := &Supervisor{logger: zap.NewNop()}
 
 	attrs := s.nonIdentifyingAttributes("test-host")
 
