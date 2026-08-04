@@ -27,7 +27,6 @@ import (
 	"github.com/Graylog2/collector/superv/sysinfo"
 	"github.com/Graylog2/collector/superv/version"
 	"github.com/open-telemetry/opamp-go/protobufs"
-	"github.com/shirou/gopsutil/v4/host"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.uber.org/zap"
@@ -55,7 +54,7 @@ func (s *Supervisor) nonIdentifyingAttributes(hostname string) []*protobufs.KeyV
 		attributeStringKv(semconv.ServiceVersionKey, version.Version()),
 	}
 
-	if description, err := getOSDescription(runtime.GOOS, host.Info, sysinfo.GetOSRelease); err == nil {
+	if description, err := getOSDescription(runtime.GOOS, sysinfo.GetPlatformInfo, sysinfo.GetOSRelease); err == nil {
 		attrs = append(attrs, attributeStringKv(semconv.OSDescriptionKey, description))
 	} else {
 		s.logger.Warn("Failed to determine the OS description", zap.Error(err))
@@ -69,15 +68,21 @@ func (s *Supervisor) nonIdentifyingAttributes(hostname string) []*protobufs.KeyV
 }
 
 // getOSDescription builds an "os.description" value for each platform.
-func getOSDescription(goos string, infoSupplier func() (*host.InfoStat, error), osReleaseSupplier func() (sysinfo.OSRelease, error)) (string, error) {
+func getOSDescription(goos string, infoSupplier func() (sysinfo.PlatformInfo, error), osReleaseSupplier func() (sysinfo.OSRelease, error)) (string, error) {
 	// On Linux we prefer data from the /etc/os-release file to get properly
 	// formatted distribution names. All os-release fields are optional per the
 	// spec, so we fall through to the generic host info data if the file can't
 	// be read or yields nothing.
 	if goos == "linux" {
 		if osRelease, err := osReleaseSupplier(); err == nil {
-			description := cmp.Or(strings.TrimSpace(osRelease.Name+" "+osRelease.VersionID), osRelease.PrettyName)
-			if description != "" {
+			// Prefer NAME + VERSION_ID only when both are present; a partial
+			// combination would mask the more complete PRETTY_NAME. A bare
+			// NAME still beats the generic host info data.
+			var nameAndVersion string
+			if osRelease.Name != "" && osRelease.VersionID != "" {
+				nameAndVersion = osRelease.Name + " " + osRelease.VersionID
+			}
+			if description := cmp.Or(nameAndVersion, osRelease.PrettyName, osRelease.Name); description != "" {
 				return description, nil
 			}
 		}
@@ -89,11 +94,11 @@ func getOSDescription(goos string, infoSupplier func() (*host.InfoStat, error), 
 	}
 	switch goos {
 	case "darwin":
-		return strings.TrimSpace("macOS " + info.PlatformVersion), nil
+		return strings.TrimSpace("macOS " + info.Version), nil
 	case "windows":
-		return strings.TrimSpace(info.Platform + " " + info.PlatformVersion), nil
+		return strings.TrimSpace(info.Name + " " + info.Version), nil
 	default:
-		return cmp.Or(strings.TrimSpace(info.Platform+" "+info.PlatformVersion), "Unknown "+info.OS), nil
+		return cmp.Or(strings.TrimSpace(info.Name+" "+info.Version), "Unknown "+info.OS), nil
 	}
 }
 

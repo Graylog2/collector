@@ -26,7 +26,6 @@ import (
 	"github.com/Graylog2/collector/superv/internal/testfixtures"
 	"github.com/Graylog2/collector/superv/internal/testsysinfo"
 	"github.com/Graylog2/collector/superv/sysinfo"
-	"github.com/shirou/gopsutil/v4/host"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -68,17 +67,29 @@ func TestSupervisor_NonIdentifyingAttributes_WithoutCollectorVersion(t *testing.
 	require.False(t, hasCollectorVersion, "collector.version should not be present when empty")
 }
 
-func loadHostInfo(t *testing.T, name string) *host.InfoStat {
+// loadPlatformInfo loads a gopsutil host.Info capture from the hostinfo
+// testdata and maps it to a sysinfo.PlatformInfo.
+func loadPlatformInfo(t *testing.T, name string) sysinfo.PlatformInfo {
 	t.Helper()
 
 	// Using path.Join to avoid backslashes on windows. The embed.FS always uses slashes.
 	data, err := testfixtures.HostInfoFS.ReadFile(path.Join("testdata", "hostinfo", "hostinfo-"+name+".json"))
 	require.NoError(t, err)
 
-	info := &host.InfoStat{}
-	require.NoError(t, json.Unmarshal(data, info))
+	var info struct {
+		OS              string `json:"os"`
+		Platform        string `json:"platform"`
+		PlatformFamily  string `json:"platformFamily"`
+		PlatformVersion string `json:"platformVersion"`
+	}
+	require.NoError(t, json.Unmarshal(data, &info))
 
-	return info
+	return sysinfo.PlatformInfo{
+		OS:      info.OS,
+		Name:    info.Platform,
+		Family:  info.PlatformFamily,
+		Version: info.PlatformVersion,
+	}
 }
 
 func TestGetOSDescription(t *testing.T) {
@@ -105,9 +116,8 @@ func TestGetOSDescription(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.fixture, func(t *testing.T) {
-			description, err := getOSDescription(tc.os, func() (*host.InfoStat, error) {
-				info := loadHostInfo(t, tc.fixture)
-				return info, nil
+			description, err := getOSDescription(tc.os, func() (sysinfo.PlatformInfo, error) {
+				return loadPlatformInfo(t, tc.fixture), nil
 			}, testsysinfo.GetOSReleaseSupplier(t, tc.fixture))
 			require.NoError(t, err)
 			require.Equal(t, tc.want, description)
@@ -131,11 +141,11 @@ func TestGetOSDescription(t *testing.T) {
 }
 
 func TestGetOSDescription_UnknownOS(t *testing.T) {
-	description, err := getOSDescription("freebsd", func() (*host.InfoStat, error) {
-		return &host.InfoStat{
-			OS:              "freebsd",
-			Platform:        "freebsd",
-			PlatformVersion: "14.1",
+	description, err := getOSDescription("freebsd", func() (sysinfo.PlatformInfo, error) {
+		return sysinfo.PlatformInfo{
+			OS:      "freebsd",
+			Name:    "freebsd",
+			Version: "14.1",
 		}, nil
 	}, testsysinfo.GetOSReleaseSupplier(t, ""))
 	require.NoError(t, err)
@@ -143,8 +153,8 @@ func TestGetOSDescription_UnknownOS(t *testing.T) {
 }
 
 func TestGetOSDescription_UnknownOSWithoutPlatform(t *testing.T) {
-	description, err := getOSDescription("freebsd", func() (*host.InfoStat, error) {
-		return &host.InfoStat{OS: "freebsd"}, nil
+	description, err := getOSDescription("freebsd", func() (sysinfo.PlatformInfo, error) {
+		return sysinfo.PlatformInfo{OS: "freebsd"}, nil
 	}, testsysinfo.GetOSReleaseSupplier(t, ""))
 	require.NoError(t, err)
 	require.Equal(t, "Unknown freebsd", description)
@@ -158,9 +168,37 @@ func TestGetOSDescription_LinuxPrettyNameFallback(t *testing.T) {
 	require.Equal(t, "Foo Linux 1.0 (Bar)", description)
 }
 
+func TestGetOSDescription_LinuxPrettyNamePreferredOverPartialName(t *testing.T) {
+	// Without a VERSION_ID, PRETTY_NAME is the better presentation value.
+	description, err := getOSDescription("linux", nil, func() (sysinfo.OSRelease, error) {
+		return sysinfo.OSRelease{Name: "Gentoo", PrettyName: "Gentoo Linux"}, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Gentoo Linux", description)
+}
+
+func TestGetOSDescription_LinuxNameOnly(t *testing.T) {
+	description, err := getOSDescription("linux", nil, func() (sysinfo.OSRelease, error) {
+		return sysinfo.OSRelease{Name: "Gentoo"}, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Gentoo", description)
+}
+
+func TestGetOSDescription_LinuxVersionIDOnlyFallsBackToHostInfo(t *testing.T) {
+	// A bare version number is useless as a description.
+	description, err := getOSDescription("linux", func() (sysinfo.PlatformInfo, error) {
+		return sysinfo.PlatformInfo{OS: "linux", Name: "ubuntu", Version: "24.04"}, nil
+	}, func() (sysinfo.OSRelease, error) {
+		return sysinfo.OSRelease{VersionID: "24.04"}, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, "ubuntu 24.04", description)
+}
+
 func TestGetOSDescription_LinuxEmptyOSReleaseFallsBackToHostInfo(t *testing.T) {
-	description, err := getOSDescription("linux", func() (*host.InfoStat, error) {
-		return &host.InfoStat{OS: "linux", Platform: "ubuntu", PlatformVersion: "24.04"}, nil
+	description, err := getOSDescription("linux", func() (sysinfo.PlatformInfo, error) {
+		return sysinfo.PlatformInfo{OS: "linux", Name: "ubuntu", Version: "24.04"}, nil
 	}, func() (sysinfo.OSRelease, error) {
 		return sysinfo.OSRelease{}, nil
 	})
@@ -169,8 +207,8 @@ func TestGetOSDescription_LinuxEmptyOSReleaseFallsBackToHostInfo(t *testing.T) {
 }
 
 func TestGetOSDescription_LinuxOSReleaseErrorFallsBackToHostInfo(t *testing.T) {
-	description, err := getOSDescription("linux", func() (*host.InfoStat, error) {
-		return &host.InfoStat{OS: "linux", Platform: "ubuntu", PlatformVersion: "24.04"}, nil
+	description, err := getOSDescription("linux", func() (sysinfo.PlatformInfo, error) {
+		return sysinfo.PlatformInfo{OS: "linux", Name: "ubuntu", Version: "24.04"}, nil
 	}, func() (sysinfo.OSRelease, error) {
 		return sysinfo.OSRelease{}, errors.New("no os-release file")
 	})
@@ -179,8 +217,8 @@ func TestGetOSDescription_LinuxOSReleaseErrorFallsBackToHostInfo(t *testing.T) {
 }
 
 func TestGetOSDescription_LinuxAllSourcesFailing(t *testing.T) {
-	_, err := getOSDescription("linux", func() (*host.InfoStat, error) {
-		return nil, errors.New("no host info")
+	_, err := getOSDescription("linux", func() (sysinfo.PlatformInfo, error) {
+		return sysinfo.PlatformInfo{}, errors.New("no platform info")
 	}, func() (sysinfo.OSRelease, error) {
 		return sysinfo.OSRelease{}, errors.New("no os-release file")
 	})
