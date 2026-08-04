@@ -38,7 +38,8 @@ func GetOSReleaseSupplier(t *testing.T, name string) func() (sysinfo.OSRelease, 
 	}
 
 	file, err := testfixtures.OsReleaseFS.Open(filepath.Join("testdata", "os-release", "os-release-"+name+".txt"))
-	require.NoError(t, err)
+	files, _ := testfixtures.OsReleaseFS.ReadDir("testdata")
+	require.NoError(t, err, "available files: %v", files)
 
 	osRelease, err := sysinfo.ParseOSRelease(file)
 	require.NoError(t, err)
