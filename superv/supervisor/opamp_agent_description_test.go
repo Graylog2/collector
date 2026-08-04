@@ -19,7 +19,7 @@ package supervisor
 
 import (
 	"encoding/json"
-	"path/filepath"
+	"path"
 	"testing"
 
 	"github.com/Graylog2/collector/superv/internal/testfixtures"
@@ -68,7 +68,8 @@ func TestSupervisor_NonIdentifyingAttributes_WithoutCollectorVersion(t *testing.
 func loadHostInfo(t *testing.T, name string) *host.InfoStat {
 	t.Helper()
 
-	data, err := testfixtures.HostInfoFS.ReadFile(filepath.Join("testdata", "hostinfo", "hostinfo-"+name+".json"))
+	// Using path.Join to avoid backslashes on windows. The embed.FS always uses slashes.
+	data, err := testfixtures.HostInfoFS.ReadFile(path.Join("testdata", "hostinfo", "hostinfo-"+name+".json"))
 	require.NoError(t, err)
 
 	info := &host.InfoStat{}

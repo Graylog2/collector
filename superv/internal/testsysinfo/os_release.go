@@ -18,7 +18,7 @@
 package testsysinfo
 
 import (
-	"path/filepath"
+	"path"
 	"strings"
 	"testing"
 
@@ -37,7 +37,8 @@ func GetOSReleaseSupplier(t *testing.T, name string) func() (sysinfo.OSRelease, 
 		}
 	}
 
-	file, err := testfixtures.OsReleaseFS.Open(filepath.Join("testdata", "os-release", "os-release-"+name+".txt"))
+	// Using path.Join to avoid backslashes on windows. The embed.FS always uses slashes.
+	file, err := testfixtures.OsReleaseFS.Open(path.Join("testdata", "os-release", "os-release-"+name+".txt"))
 	files, _ := testfixtures.OsReleaseFS.ReadDir("testdata")
 	require.NoError(t, err, "available files: %v", files)
 
