@@ -18,19 +18,18 @@
 package supervisor
 
 import (
-	"cmp"
+	"fmt"
 	"os"
 	"runtime"
 	"strings"
 
+	"github.com/Graylog2/collector/superv/sysinfo"
 	"github.com/Graylog2/collector/superv/version"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"github.com/shirou/gopsutil/v4/host"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.uber.org/zap"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 // createAgentDescription creates the initial agent description for OpAMP.
@@ -55,9 +54,8 @@ func (s *Supervisor) nonIdentifyingAttributes(hostname string) []*protobufs.KeyV
 		attributeStringKv(semconv.ServiceVersionKey, version.Version()),
 	}
 
-	info, err := host.Info()
-	if err == nil {
-		attrs = append(attrs, attributeStringKv(semconv.OSDescriptionKey, getOSDescription(info)))
+	if description, err := getOSDescription(runtime.GOOS, host.Info, sysinfo.GetOSRelease); err == nil {
+		attrs = append(attrs, attributeStringKv(semconv.OSDescriptionKey, description))
 	} else {
 		s.logger.Warn("Failed to retrieve host information", zap.Error(err))
 	}
@@ -69,43 +67,27 @@ func (s *Supervisor) nonIdentifyingAttributes(hostname string) []*protobufs.KeyV
 	return attrs
 }
 
-// linuxPlatformNames maps gopsutil platform identifiers to product names
-// where simple title-casing gets the spelling wrong. Identifiers come from
-// distro release files or the ID field in /etc/os-release.
-var linuxPlatformNames = map[string]string{
-	"almalinux":           "AlmaLinux",
-	"amazon":              "Amazon Linux",
-	"amzn":                "Amazon Linux",
-	"centos":              "CentOS",
-	"cloudlinux":          "CloudLinux",
-	"linuxmint":           "Linux Mint",
-	"nixos":               "NixOS",
-	"ol":                  "Oracle Linux",
-	"opensuse":            "openSUSE",
-	"opensuse-leap":       "openSUSE Leap",
-	"opensuse-tumbleweed": "openSUSE Tumbleweed",
-	"oracle":              "Oracle Linux",
-	"redhat":              "Red Hat Enterprise Linux",
-	"rhel":                "Red Hat Enterprise Linux",
-	"rocky":               "Rocky Linux",
-	"scientific":          "Scientific Linux",
-	"sled":                "SUSE Linux Enterprise Desktop",
-	"sles":                "SUSE Linux Enterprise Server",
-	"suse":                "SUSE",
-}
-
 // getOSDescription builds an "os.description" value for each platform.
-func getOSDescription(info *host.InfoStat) string {
-	switch info.OS {
-	case "darwin":
-		return strings.TrimSpace("macOS " + info.PlatformVersion)
-	case "linux":
-		name := cmp.Or(linuxPlatformNames[info.Platform], cases.Title(language.English).String(info.Platform))
-		return strings.TrimSpace(name + " " + info.PlatformVersion)
-	case "windows":
-		return strings.TrimSpace(info.Platform + " " + info.PlatformVersion)
-	default:
-		return "Unknown " + info.OS
+func getOSDescription(os string, infoSupplier func() (*host.InfoStat, error), osReleaseSupplier func() (sysinfo.OSRelease, error)) (string, error) {
+	// On Linux we use data from the /etc/os-release file to get properly formatted distribution names.
+	if os == "linux" {
+		osRelease, err := osReleaseSupplier()
+		if err != nil {
+			return "", fmt.Errorf("couldn't read os-release info: %w", err)
+		}
+		return strings.TrimSpace(osRelease.Name + " " + osRelease.VersionID), nil
+	}
+	if info, err := infoSupplier(); err == nil {
+		switch os {
+		case "darwin":
+			return strings.TrimSpace("macOS " + info.PlatformVersion), nil
+		case "windows":
+			return strings.TrimSpace(info.Platform + " " + info.PlatformVersion), nil
+		default:
+			return "Unknown " + info.OS, nil
+		}
+	} else {
+		return "", fmt.Errorf("couldn't read host info: %w", err)
 	}
 }
 
