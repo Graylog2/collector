@@ -18,6 +18,7 @@
 package sysinfo
 
 import (
+	"fmt"
 	"runtime"
 
 	"github.com/shirou/gopsutil/v4/host"
@@ -37,7 +38,7 @@ type PlatformInfo struct {
 func GetPlatformInfo() (PlatformInfo, error) {
 	platform, family, version, err := host.PlatformInformation()
 	if err != nil {
-		return PlatformInfo{}, err
+		return PlatformInfo{}, fmt.Errorf("couldn't retrieve platform information: %w", err)
 	}
 	return PlatformInfo{
 		OS:      runtime.GOOS,
