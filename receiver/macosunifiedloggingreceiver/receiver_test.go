@@ -624,20 +624,6 @@ func TestReceiver_ShutdownWithoutStartIsSafe(t *testing.T) {
 	}
 }
 
-// argRecorder is a logRunner that records the args of every invocation and returns an empty
-// body, so a test can assert exactly which flags the receiver passed to `log`.
-type argRecorder struct {
-	mu   sync.Mutex
-	args [][]string
-}
-
-func (r *argRecorder) Run(_ context.Context, args []string) (io.ReadCloser, func() (string, error), error) {
-	r.mu.Lock()
-	r.args = append(r.args, append([]string(nil), args...))
-	r.mu.Unlock()
-	return io.NopCloser(strings.NewReader("")), func() (string, error) { return "", nil }, nil
-}
-
 // hasFlag reports whether args contains flag immediately followed by val.
 func hasFlag(args []string, flag, val string) bool {
 	for i := 0; i+1 < len(args); i++ {
