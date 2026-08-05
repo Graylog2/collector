@@ -19,20 +19,24 @@ The macOS Unified Logging Receiver collects logs from the live macOS system log 
 
 ## Changes from Upstream
 
-- The receiver maintains a forward cursor using `(machTimestamp, threadID)` deduplication, so
-  events at the boundary second are emitted exactly once instead of being re-emitted on each
-  poll. The `--start` value is always floored to whole seconds because the `log` command
-  rejects fractional seconds, and is anchored to UTC (a `+0000` offset) so that a change in
-  the host's local timezone or a DST transition cannot shift the cursor or skip/duplicate a
-  window.
+- The receiver maintains a forward cursor with `(machTimestamp, threadID)` deduplication.
+  During normal polling, this prevents repeated delivery of boundary-second events. The
+  `--start` value uses whole seconds because the `log` command rejects fractional seconds.
+  The value uses UTC (a `+0000` offset). Thus, a timezone change or DST transition cannot
+  shift the cursor window.
 - The receiver always invokes `log show --style ndjson` internally. Each log record's body is
   set to the human-readable `eventMessage` field; structured `macos.*` attributes are emitted
   for every other field of interest. The user-visible `format` option is currently inert
   (reserved; not honored).
 - Archive mode (`.logarchive` files) has been removed; the receiver reads the live system log
   only.
-- The cursor is persisted via a collector storage extension (`storage:` is required). On restart the cursor is restored and polling resumes from where it left off. A
-  `bootUUID` change (reboot detected mid-stream) resets the cursor automatically.
+- The receiver currently does not collect `info` or `debug` levels from the system log, because
+  they are very noisy and hardly useful for system logs, please file an issue if you require
+  this functionality.
+- The receiver saves the cursor through a collector storage extension (`storage:` is required).
+  After a restart, the receiver restores a cursor when its JSON and predicate hash match. The
+  receiver resets the cursor after it successfully delivers an event with a different
+  `bootUUID`.
 - The `log` binary is invoked at its fixed absolute path `/usr/bin/log` and integrity-verified
   at startup: filesystem ownership and SIP-restriction checks are required; an Apple
   code-signature check (`codesign --verify`) is performed as a best-effort second layer.
@@ -228,25 +232,32 @@ rejects records without a `machTimestamp`, and the two together form the cursor'
 
 ### Live Cursor
 
-The receiver maintains a **forward cursor** so that each event is delivered exactly once:
+The receiver maintains a durable **forward cursor**. This cursor prevents duplicate boundary
+events during normal polling. Delivery is at least once across process crashes and storage
+failures.
 
-1. **`--start` flooring**: The `log show --start` value must be a whole second (the `log`
-   command rejects fractional seconds). The cursor records the wall-clock second of the
-   latest event seen in each poll.
+1. **`--start` flooring**: The `log show --start` value must use whole seconds. The `log`
+   command rejects fractional seconds. The cursor stores the UTC second of the most recent
+   successfully delivered event. The next poll uses this inclusive second as its start value.
 2. **Boundary-second deduplication**: Because `--start` is inclusive, events at the boundary
-   second are re-fetched on the next poll. The cursor records the `(machTimestamp, threadID)`
-   pair of every event at that boundary second and skips any that were already emitted.
-3. **Persistence**: After a poll that advanced the cursor, it is serialized and saved via the
-   storage extension identified by `storage:`. An idle poll leaves the cursor unchanged and is
-   not rewritten, so a quiet system does not incur a storage write on every tick. On restart
-   the cursor is loaded from storage and polling continues from the last committed position. If the stored cursor cannot be
-   *read* at startup, the receiver fails to start rather than beginning fresh — a silent fresh
-   start would re-read and re-ingest up to `max_log_age` of logs. A cursor that is present but
-   unparseable, or that was written under a different `predicate`, is discarded with a log
-   message and the receiver starts fresh (both are expected states, not failures).
-4. **Reboot detection**: If the `bootUUID` field changes between events, the cursor is
-   reset immediately — `machTimestamp` is monotonic per boot, so values from a previous boot
-   are meaningless as a cursor position.
+   second are read again during the next poll. The cursor stores the `(machTimestamp, threadID)`
+   pair of each successfully delivered boundary event. The receiver skips matching events.
+3. **Persistence**: After each poll, the receiver serializes the committed cursor. It writes
+   the cursor when the value differs from the last successful write. If a write fails, the
+   receiver logs a warning and tries again after the next poll. After a successful write, idle
+   polls do not rewrite an unchanged cursor. A crash can occur after delivery but before a
+   successful cursor write. In this case, the receiver can deliver the same events again after
+   a restart.
+
+   During startup, the receiver reads the cursor from storage. A storage read error stops
+   startup. The receiver uses a stored cursor when its JSON is valid and its predicate hash
+   matches the current `predicate`. The loader does not validate the other cursor fields. If
+   the JSON is invalid or the predicate changed, the receiver logs a message and starts from
+   the configured cold-start window. The `start_time` value defines this window when present.
+   Otherwise, `max_log_age` defines the window.
+4. **Reboot detection**: `machTimestamp` is monotonic only within one boot. After the receiver
+   successfully delivers an event with a different `bootUUID`, it resets the cursor for the
+   new boot. A rejected event does not change the cursor.
 
 ## Security
 
