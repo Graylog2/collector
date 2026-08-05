@@ -3,7 +3,6 @@ module github.com/Graylog2/collector/receiver/macosunifiedloggingreceiver
 go 1.26.0
 
 require (
-	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component v1.59.0
 	go.opentelemetry.io/collector/component/componenttest v0.153.0
