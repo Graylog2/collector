@@ -27,6 +27,13 @@ vars:
     -f .license.template.otel
     -ignore '**/*.{yml,yaml}'
     receiver/windowseventlogreceiver
+  # Add new Go modules here!
+  GO_MODULES:
+    - .
+    - superv
+    - receiver/windowseventlogreceiver
+    #- extension/sidecar
+    - internal/tools
 
 includes:
   'receiver:winlog':
@@ -83,10 +90,10 @@ tasks:
   vulncheck:
     desc: 'Run govulncheck for all modules'
     cmds:
-      - go tool govulncheck ./...
-      - go tool govulncheck -C builder ./...
-      - go tool govulncheck -C superv ./...
-      - go tool govulncheck -C receiver/windowseventlogreceiver ./...
+      - for:
+          var: GO_MODULES
+          as: CURRENT
+        cmd: go tool govulncheck -C {{.CURRENT}} ./...
 
   all:
     desc: 'Cross-compile collector for all platforms with full preflight'
@@ -256,6 +263,18 @@ tasks:
       - cmd: |
           echo "{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}"
 
+  update:dependency:
+    desc: 'Update one dependency in all modules'
+
+    requires:
+      vars: ["GO_MODULES", "PKG"]
+
+    cmds:
+      - for:
+          var: GO_MODULES
+          as: CURRENT
+        cmd: cd {{.CURRENT}} && go get -u {{.PKG}} && go mod tidy
+
   update:dependencies:
     desc: 'Update dependencies in all modules'
 
@@ -266,6 +285,9 @@ tasks:
         sh: go list -m go.opentelemetry.io/collector/confmap/provider/envprovider@latest | awk '{print $2}'
       OTEL_CONTRIB_VERSION:
         sh: go list -m github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver@latest | awk '{print $2}'
+
+    requires:
+      vars: ["GO_MODULES"]
 
     preconditions:
       - sh: 'test "{{.OTEL_BETA_VERSION}}" = "{{.OTEL_CONTRIB_VERSION}}"'
@@ -278,8 +300,8 @@ tasks:
           -e 's#((go\.opentelemetry\.io/collector|github\.com/open-telemetry/opentelemetry-collector-contrib)/[^[:space:]]+)[[:space:]]+v0\.[0-9]+\.[0-9]+#\1 {{.OTEL_BETA_VERSION}}#g'
           -e 's#((go\.opentelemetry\.io/collector|github\.com/open-telemetry/opentelemetry-collector-contrib)/[^[:space:]]+)[[:space:]]+v1\.[0-9]+\.[0-9]+#\1 {{.OTEL_STABLE_VERSION}}#g'
           builder/builder-config.yaml
-      - go get -u -t ./... && go mod tidy
-      - cd internal/tools && go get -u -t ./... && go mod tidy
-      - cd superv && go get -u -t ./... && go mod tidy
-      - cd receiver/windowseventlogreceiver && go get -u -t ./... && go mod tidy
+      - for:
+          var: GO_MODULES
+          as: CURRENT
+        cmd: cd {{.CURRENT}} && go get -u -t ./... && go mod tidy
       - task: builder:generate
