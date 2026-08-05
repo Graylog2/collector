@@ -1,0 +1,15 @@
+{
+  "hostname": "win2025",
+  "uptime": 12094781,
+  "bootTime": 1773408613,
+  "procs": 144,
+  "os": "windows",
+  "platform": "Microsoft Windows Server 2025 Datacenter",
+  "platformFamily": "Server",
+  "platformVersion": "24H2",
+  "kernelVersion": "10.0.26100.32370 Build 26100.32370",
+  "kernelArch": "x86_64",
+  "virtualizationSystem": "",
+  "virtualizationRole": "",
+  "hostId": "bd5b5796-fec7-454b-9483-5eb014ea99cf"
+}

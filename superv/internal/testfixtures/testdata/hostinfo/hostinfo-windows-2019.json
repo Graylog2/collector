@@ -1,0 +1,15 @@
+{
+  "hostname": "win2019",
+  "uptime": 13397856,
+  "bootTime": 1772105492,
+  "procs": 110,
+  "os": "windows",
+  "platform": "Microsoft Windows Server 2019 Datacenter",
+  "platformFamily": "Server",
+  "platformVersion": "",
+  "kernelVersion": "10.0.17763.8389 Build 17763.8389",
+  "kernelArch": "x86_64",
+  "virtualizationSystem": "",
+  "virtualizationRole": "",
+  "hostId": "bd5b5796-fec7-454b-9483-5eb014ea99cf"
+}

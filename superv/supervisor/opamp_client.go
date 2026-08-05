@@ -21,14 +21,11 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"os"
-	"runtime"
 	"time"
 
 	"github.com/Graylog2/collector/superv/components"
 	"github.com/Graylog2/collector/superv/opamp"
 	"github.com/Graylog2/collector/superv/supervisor/connection"
-	"github.com/Graylog2/collector/superv/version"
 	"github.com/open-telemetry/opamp-go/protobufs"
 	"go.uber.org/zap"
 )
@@ -208,56 +205,6 @@ func (s *Supervisor) createOpAMPCallbacks() *opamp.Callbacks {
 			}
 		},
 	}
-}
-
-// createAgentDescription creates the initial agent description for OpAMP.
-func (s *Supervisor) createAgentDescription() *protobufs.AgentDescription {
-	hostname, _ := os.Hostname()
-
-	return &protobufs.AgentDescription{
-		IdentifyingAttributes: []*protobufs.KeyValue{
-			{
-				Key:   "service.name",
-				Value: &protobufs.AnyValue{Value: &protobufs.AnyValue_StringValue{StringValue: ServiceName}},
-			},
-			{
-				Key:   "service.instance.id",
-				Value: &protobufs.AnyValue{Value: &protobufs.AnyValue_StringValue{StringValue: s.instanceUID}},
-			},
-		},
-		NonIdentifyingAttributes: s.nonIdentifyingAttributes(hostname),
-	}
-}
-
-// nonIdentifyingAttributes builds the list of non-identifying attributes for the agent description.
-func (s *Supervisor) nonIdentifyingAttributes(hostname string) []*protobufs.KeyValue {
-	attrs := []*protobufs.KeyValue{
-		{
-			Key:   "service.version",
-			Value: &protobufs.AnyValue{Value: &protobufs.AnyValue_StringValue{StringValue: version.Version()}},
-		},
-		{
-			Key:   "host.name",
-			Value: &protobufs.AnyValue{Value: &protobufs.AnyValue_StringValue{StringValue: hostname}},
-		},
-		{
-			Key:   "os.type",
-			Value: &protobufs.AnyValue{Value: &protobufs.AnyValue_StringValue{StringValue: runtime.GOOS}},
-		},
-		{
-			Key:   "host.arch",
-			Value: &protobufs.AnyValue{Value: &protobufs.AnyValue_StringValue{StringValue: runtime.GOARCH}},
-		},
-	}
-
-	if s.collectorVersion != "" {
-		attrs = append(attrs, &protobufs.KeyValue{
-			Key:   "collector.version",
-			Value: &protobufs.AnyValue{Value: &protobufs.AnyValue_StringValue{StringValue: s.collectorVersion}},
-		})
-	}
-
-	return attrs
 }
 
 // setClientAvailableComponents discovers and sets available components on the given client.
