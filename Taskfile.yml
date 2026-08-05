@@ -263,6 +263,18 @@ tasks:
       - cmd: |
           echo "{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}"
 
+  go:mod:tidy:
+    desc: 'Run go mod tidy in all modules'
+
+    requires:
+      vars: ["GO_MODULES"]
+
+    cmds:
+      - for:
+          var: GO_MODULES
+          as: CURRENT
+        cmd: cd {{.CURRENT}} && go mod tidy
+
   update:dependency:
     desc: 'Update one dependency in all modules'
 
