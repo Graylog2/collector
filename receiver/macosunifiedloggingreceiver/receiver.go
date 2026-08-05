@@ -323,7 +323,7 @@ func nextLine(br *bufio.Reader) (line []byte, oversized int, err error) {
 		return line, 0, err
 	}
 	oversized = len(line)
-	for err == bufio.ErrBufferFull {
+	for errors.Is(err, bufio.ErrBufferFull) {
 		var chunk []byte
 		chunk, err = br.ReadSlice('\n')
 		oversized += len(chunk)
