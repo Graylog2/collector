@@ -319,7 +319,7 @@ func newBatch() (plog.Logs, plog.LogRecordSlice) {
 // stalling. The returned line aliases br's buffer and is valid only until the next read.
 func nextLine(br *bufio.Reader) (line []byte, oversized int, err error) {
 	line, err = br.ReadSlice('\n')
-	if err != bufio.ErrBufferFull {
+	if !errors.Is(err, bufio.ErrBufferFull) {
 		return line, 0, err
 	}
 	oversized = len(line)
