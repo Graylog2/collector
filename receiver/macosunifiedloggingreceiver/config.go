@@ -6,7 +6,6 @@
 package macosunifiedloggingreceiver // import "github.com/Graylog2/collector/receiver/macosunifiedloggingreceiver"
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"time"
@@ -32,9 +31,6 @@ func (cfg *Config) Validate() error {
 		return errors.New("storage is required: set 'storage:' to the ID of a configured storage extension (for example file_storage/default)")
 	}
 
-	// Set default format if not specified
-	cfg.Format = cmp.Or(cfg.Format, "default")
-
 	// Validate format
 	validFormats := map[string]bool{
 		"default": true,
@@ -54,16 +50,19 @@ func (cfg *Config) Validate() error {
 		}
 	}
 
-	// Zero means "unset": newUnifiedLoggingReceiver substitutes the 1s default, so it stays
-	// legal. Any explicit value must clear the floor.
-	if cfg.MinPollInterval < 0 {
-		return errors.New("min_poll_interval must not be negative")
+	// createDefaultConfig uses defaults defined in config_common.go
+	// 0 does not mean default, to use the default leave the values unset
+	if cfg.MinPollInterval <= 0 {
+		return errors.New("min_poll_interval must be positive")
 	}
-	if cfg.MinPollInterval != 0 && cfg.MinPollInterval < minPollFloor {
+	if cfg.MinPollInterval < minPollFloor {
 		return fmt.Errorf("min_poll_interval (%s) must be at least %s: `log show` logs its own invocation, so a shorter interval can sustain a self-feeding poll loop", cfg.MinPollInterval, minPollFloor)
 	}
-	if cfg.MaxPollInterval > 0 && cfg.MinPollInterval > cfg.MaxPollInterval {
+	if cfg.MinPollInterval > cfg.MaxPollInterval {
 		return fmt.Errorf("min_poll_interval (%s) must not exceed max_poll_interval (%s)", cfg.MinPollInterval, cfg.MaxPollInterval)
+	}
+	if cfg.MaxLogAge < 0 {
+		return errors.New("max_log_age must not be negative")
 	}
 
 	return nil

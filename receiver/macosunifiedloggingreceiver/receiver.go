@@ -6,7 +6,6 @@ package macosunifiedloggingreceiver // import "github.com/Graylog2/collector/rec
 import (
 	"bufio"
 	"bytes"
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -57,8 +56,6 @@ type unifiedLoggingReceiver struct {
 }
 
 func newUnifiedLoggingReceiver(cfg *Config, set receiver.Settings, consumer consumer.Logs, runner logRunner) *unifiedLoggingReceiver {
-	minI := cmp.Or(cfg.MinPollInterval, time.Second)
-	maxI := cmp.Or(cfg.MaxPollInterval, 30*time.Second)
 	return &unifiedLoggingReceiver{
 		cfg:          cfg,
 		id:           set.ID,
@@ -66,7 +63,7 @@ func newUnifiedLoggingReceiver(cfg *Config, set receiver.Settings, consumer cons
 		consumer:     consumer,
 		runner:       runner,
 		cursor:       newCursor(predicateHash(cfg.Predicate)),
-		cadence:      newCadence(minI, maxI),
+		cadence:      newCadence(cfg.MinPollInterval, cfg.MaxPollInterval),
 		now:          time.Now,
 		maxLineBytes: maxLineBytes,
 	}
@@ -148,7 +145,8 @@ func (r *unifiedLoggingReceiver) startArgValue() string {
 	// Resume: read from the cursor even if it predates max_log_age, so an outage longer than
 	// max_log_age does not silently drop the gap. Warn when it does — the store may already
 	// have aged out part of that gap (a source limit we cannot recover from).
-	if floor := r.now().UTC().Add(-r.cfg.MaxLogAge).Format(startLayout); cur < floor {
+	// For MaxLogAge of 0, we never warn, it would always be true and just add noise
+	if floor := r.now().UTC().Add(-r.cfg.MaxLogAge).Format(startLayout); cur < floor && r.cfg.MaxLogAge != 0 {
 		r.logger.Warn("resuming from a cursor older than max_log_age; logs in the gap may have aged out of the store",
 			zap.String("cursor", cur), zap.String("max_log_age_floor", floor))
 	}

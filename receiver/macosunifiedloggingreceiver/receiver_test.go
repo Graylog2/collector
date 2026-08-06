@@ -18,6 +18,9 @@ import (
 	"go.opentelemetry.io/collector/extension/xextension/storage"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/receiver/receivertest"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // flakyConsumer rejects any batch containing a record whose body equals failBody, up to
@@ -343,6 +346,44 @@ func TestStartArgValue_ColdStartUsesMaxLogAge(t *testing.T) {
 
 	if got, want := r.startArgValue(), "2026-06-29 12:00:00"; got != want {
 		t.Errorf("startArgValue = %q, want the max_log_age floor %q on cold start", got, want)
+	}
+}
+
+// TestStartArgValue_ZeroMaxLogAgeStartsAtEnd pins the max_log_age: 0 semantics: no backfill,
+// a cold start begins reading at "now" (start at the end of the log).
+func TestStartArgValue_ZeroMaxLogAgeStartsAtEnd(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.MaxLogAge = 0
+	r := newUnifiedLoggingReceiver(cfg, receivertest.NewNopSettings(component.MustNewType("macos_unified_logging")), new(consumertest.LogsSink), &fakeRunner{})
+	r.now = func() time.Time { return time.Date(2026, 6, 30, 12, 0, 0, 0, time.UTC) }
+
+	if got, want := r.startArgValue(), "2026-06-30 12:00:00"; got != want {
+		t.Errorf("startArgValue = %q, want %q (max_log_age 0 must start at the end of the log)", got, want)
+	}
+}
+
+// TestStartArgValue_ZeroMaxLogAgeResumeDoesNotWarn: with max_log_age 0 the aged-out floor
+// collapses to "now", so every persisted cursor is "older than max_log_age" and the warning
+// would fire on every poll. It must stay silent; the cursor is still honored as-is.
+func TestStartArgValue_ZeroMaxLogAgeResumeDoesNotWarn(t *testing.T) {
+	cfg := createDefaultConfig().(*Config)
+	cfg.MaxLogAge = 0
+	r := newUnifiedLoggingReceiver(cfg, receivertest.NewNopSettings(component.MustNewType("macos_unified_logging")), new(consumertest.LogsSink), &fakeRunner{})
+	core, observed := observer.New(zapcore.WarnLevel)
+	r.logger = zap.New(core)
+	r.now = func() time.Time { return time.Date(2026, 6, 30, 12, 0, 0, 0, time.UTC) }
+
+	// Seed a committed cursor in the past; with a zero floor it always predates now.
+	old := ev(100, 1, "A", "2026-06-27 09:00:00.000000+0000")
+	r.cursor.shouldEmit(old)
+	r.cursor.recordDelivered([]*logEvent{old})
+	r.cursor.commit()
+
+	if got, want := r.startArgValue(), "2026-06-27 09:00:00"; got != want {
+		t.Errorf("startArgValue = %q, want the persisted cursor %q", got, want)
+	}
+	if n := observed.Len(); n != 0 {
+		t.Errorf("logged %d warning(s), want none: %v", n, observed.All())
 	}
 }
 

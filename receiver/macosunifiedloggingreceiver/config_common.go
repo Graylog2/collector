@@ -9,6 +9,10 @@ import (
 	"go.opentelemetry.io/collector/component"
 )
 
+const defaultMaxPollInterval = 30 * time.Second
+const defaultMinPollInterval = time.Second
+const defaultMaxLogAge = 24 * time.Hour
+
 // Config defines configuration for the macOS unified logging receiver
 // Separated into a common file that isn't platform specific so that factory_others.go can reference it
 type Config struct {
@@ -27,6 +31,7 @@ type Config struct {
 
 	// MaxLogAge specifies the maximum age of logs to read on startup
 	// Only applies to live mode. Format: "24h", "1h30m", etc.
+	// 0 starts at the end of the log (no backfill)
 	MaxLogAge time.Duration `mapstructure:"max_log_age"`
 
 	// Format specifies the output format from the log command

@@ -28,7 +28,8 @@ func TestConfigValidate(t *testing.T) {
 		{
 			desc: "storage is required",
 			makeCfg: func(_ *testing.T) *Config {
-				return &Config{MaxPollInterval: 50 * time.Second}
+				config := createDefaultConfig().(*Config)
+				return config
 			},
 			omitStorage: true,
 			expectedErr: "storage is required",
@@ -36,56 +37,70 @@ func TestConfigValidate(t *testing.T) {
 		{
 			desc: "min_poll_interval below the floor is rejected",
 			makeCfg: func(_ *testing.T) *Config {
-				return &Config{MinPollInterval: time.Millisecond}
+				config := createDefaultConfig().(*Config)
+				config.MinPollInterval = time.Millisecond
+				return config
 			},
 			expectedErr: "must be at least 100ms",
 		},
 		{
 			desc: "min_poll_interval at the floor is accepted",
 			makeCfg: func(_ *testing.T) *Config {
-				return &Config{MinPollInterval: 100 * time.Millisecond}
+				config := createDefaultConfig().(*Config)
+				config.MinPollInterval = 100 * time.Millisecond
+				return config
 			},
 		},
 		{
 			desc: "min_poll_interval unset means default, not below the floor",
 			makeCfg: func(_ *testing.T) *Config {
-				return &Config{}
+				config := createDefaultConfig().(*Config)
+				return config
 			},
 		},
 		{
-			desc: "min_poll_interval must not be negative",
+			desc: "min_poll_interval must be positive",
 			makeCfg: func(_ *testing.T) *Config {
-				return &Config{MinPollInterval: -time.Second}
+				config := createDefaultConfig().(*Config)
+				config.MinPollInterval = -time.Second
+				return config
 			},
-			expectedErr: "must not be negative",
+			expectedErr: "must be positive",
 		},
 		{
 			desc: "min_poll_interval must not exceed max_poll_interval",
 			makeCfg: func(_ *testing.T) *Config {
-				return &Config{MinPollInterval: time.Minute, MaxPollInterval: time.Second}
+				config := createDefaultConfig().(*Config)
+				config.MinPollInterval = time.Minute
+				config.MaxPollInterval = time.Second
+				return config
 			},
 			expectedErr: "must not exceed max_poll_interval",
 		},
 		{
 			desc: "valid config - live mode",
 			makeCfg: func(_ *testing.T) *Config {
-				return &Config{
-					MaxPollInterval: 50 * time.Second,
-					MaxLogAge:       12 * time.Hour,
-				}
+				config := createDefaultConfig().(*Config)
+				config.MaxPollInterval = 50 * time.Second
+				config.MaxLogAge = 12 * time.Hour
+				return config
 			},
 		},
 		{
 			desc: "invalid format is rejected",
 			makeCfg: func(_ *testing.T) *Config {
-				return &Config{Format: "yaml"}
+				config := createDefaultConfig().(*Config)
+				config.Format = "yaml"
+				return config
 			},
 			expectedErr: "invalid format",
 		},
 		{
 			desc: "invalid start_time is rejected",
 			makeCfg: func(_ *testing.T) *Config {
-				return &Config{StartTime: "yesterday"}
+				config := createDefaultConfig().(*Config)
+				config.StartTime = "yesterday"
+				return config
 			},
 			expectedErr: "invalid start_time format",
 		},
@@ -95,13 +110,34 @@ func TestConfigValidate(t *testing.T) {
 		{
 			desc: "predicate with a shell metacharacter inside a string literal is accepted",
 			makeCfg: func(_ *testing.T) *Config {
-				return &Config{Predicate: "eventMessage CONTAINS 'exit code 1; retry $HOME `x` a|b'"}
+				config := createDefaultConfig().(*Config)
+				config.Predicate = "eventMessage CONTAINS 'exit code 1; retry $HOME `x` a|b'"
+				return config
 			},
 		},
 		{
 			desc: "predicate using a field the log help text omits is accepted",
 			makeCfg: func(_ *testing.T) *Config {
-				return &Config{Predicate: "messageType == 'Error'"}
+				config := createDefaultConfig().(*Config)
+				config.Predicate = "messageType == 'Error'"
+				return config
+			},
+		},
+		{
+			desc: "negative max_log_age is rejected",
+			makeCfg: func(_ *testing.T) *Config {
+				config := createDefaultConfig().(*Config)
+				config.MaxLogAge = -defaultMaxLogAge
+				return config
+			},
+			expectedErr: "max_log_age must not be negative",
+		},
+		{
+			desc: "zero max_log_age is valid",
+			makeCfg: func(_ *testing.T) *Config {
+				config := createDefaultConfig().(*Config)
+				config.MaxLogAge = 0
+				return config
 			},
 		},
 	}
@@ -162,7 +198,7 @@ func TestLoadConfigFromYAML(t *testing.T) {
 			require.NoError(t, err)
 
 			// Unmarshal into Config struct
-			cfg := &Config{}
+			cfg := createDefaultConfig().(*Config)
 			err = sub.Unmarshal(cfg)
 			require.NoError(t, err)
 

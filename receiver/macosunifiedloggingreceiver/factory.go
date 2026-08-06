@@ -4,8 +4,6 @@
 package macosunifiedloggingreceiver // import "github.com/Graylog2/collector/receiver/macosunifiedloggingreceiver"
 
 import (
-	"time"
-
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/receiver"
 )
@@ -17,11 +15,10 @@ func NewFactory() receiver.Factory {
 
 // createDefaultConfig creates a config with default values
 func createDefaultConfig() component.Config {
-	// Default to live mode
 	return &Config{
-		MaxPollInterval: 30 * time.Second,
-		MinPollInterval: time.Second,
-		MaxLogAge:       24 * time.Hour,
+		MaxPollInterval: defaultMaxPollInterval,
+		MinPollInterval: defaultMinPollInterval,
+		MaxLogAge:       defaultMaxLogAge,
 		Format:          "default",
 	}
 }
