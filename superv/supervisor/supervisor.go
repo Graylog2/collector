@@ -68,7 +68,7 @@ type Supervisor struct {
 	maxHeartbeatInterval      time.Duration
 	persistenceDir            string
 	instanceUID               string
-	collectorVersion          string
+	collectorVersion          string // TODO: Remove separate collector.version field
 	authManager               *auth.Manager
 	connectionSettingsManager *connection.SettingsManager
 	configManager             *configmanager.Manager

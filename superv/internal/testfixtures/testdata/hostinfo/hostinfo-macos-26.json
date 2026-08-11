@@ -1,0 +1,15 @@
+{
+  "hostname": "HOSTNAME-MP",
+  "uptime": 969219,
+  "bootTime": 1784534644,
+  "procs": 704,
+  "os": "darwin",
+  "platform": "darwin",
+  "platformFamily": "Standalone Workstation",
+  "platformVersion": "26.5.2",
+  "kernelVersion": "25.5.0",
+  "kernelArch": "x86_64",
+  "virtualizationSystem": "",
+  "virtualizationRole": "",
+  "hostId": "bd5b5796-fec7-454b-9483-5eb014ea99cf"
+}

@@ -6,6 +6,7 @@ go 1.26.0
 
 require (
 	github.com/Graylog2/collector/extension/sidecar v1.5.0
+	github.com/Graylog2/collector/receiver/macosunifiedloggingreceiver v0.0.0
 	github.com/Graylog2/collector/receiver/windowseventlogreceiver v0.0.0
 	github.com/Graylog2/collector/superv v0.0.0-00010101000000-000000000000
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.158.0
@@ -14,7 +15,6 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.158.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.158.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/journaldreceiver v0.158.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/macosunifiedloggingreceiver v0.158.0
 	github.com/spf13/cobra v1.10.2
 	go.opentelemetry.io/collector/component v1.64.0
 	go.opentelemetry.io/collector/confmap v1.64.0
@@ -61,7 +61,7 @@ require (
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/go-ole/go-ole v1.2.6 // indirect
+	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
@@ -90,7 +90,7 @@ require (
 	github.com/knadh/koanf/v2 v2.3.6 // indirect
 	github.com/leodido/go-syslog/v4 v4.6.0 // indirect
 	github.com/leodido/ragel-machinery v0.0.0-20190525184631-5f46317e436b // indirect
-	github.com/lufia/plan9stats v0.0.0-20251013123823-9fd1530e3ec3 // indirect
+	github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5 // indirect
 	github.com/magefile/mage v1.17.2 // indirect
 	github.com/michel-laterman/proxy-connect-dialer-go v0.1.0 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -123,8 +123,8 @@ require (
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
-	github.com/tklauser/go-sysconf v0.3.16 // indirect
-	github.com/tklauser/numcpus v0.11.0 // indirect
+	github.com/tklauser/go-sysconf v0.4.0 // indirect
+	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/valyala/fastjson v1.6.10 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.etcd.io/bbolt v1.5.0 // indirect
@@ -226,5 +226,7 @@ require (
 replace github.com/Graylog2/collector/extension/sidecar => ../extension/sidecar
 
 replace github.com/Graylog2/collector/receiver/windowseventlogreceiver => ../receiver/windowseventlogreceiver
+
+replace github.com/Graylog2/collector/receiver/macosunifiedloggingreceiver => ../receiver/macosunifiedloggingreceiver
 
 replace github.com/Graylog2/collector/superv => ../superv

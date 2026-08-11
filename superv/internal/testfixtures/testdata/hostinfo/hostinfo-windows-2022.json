@@ -1,0 +1,15 @@
+{
+  "hostname": "win2022",
+  "uptime": 13398027,
+  "bootTime": 1772105348,
+  "procs": 117,
+  "os": "windows",
+  "platform": "Microsoft Windows Server 2022 Datacenter",
+  "platformFamily": "Server",
+  "platformVersion": "21H2",
+  "kernelVersion": "10.0.20348.4773 Build 20348.4773",
+  "kernelArch": "x86_64",
+  "virtualizationSystem": "",
+  "virtualizationRole": "",
+  "hostId": "bd5b5796-fec7-454b-9483-5eb014ea99cf"
+}

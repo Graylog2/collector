@@ -27,10 +27,12 @@ vars:
     -f .license.template.otel
     -ignore '**/*.{yml,yaml}'
     receiver/windowseventlogreceiver
+    receiver/macosunifiedloggingreceiver
   # Add new Go modules here!
   GO_MODULES:
     - .
     - superv
+    - receiver/macosunifiedloggingreceiver
     - receiver/windowseventlogreceiver
     #- extension/sidecar
     - internal/tools
@@ -39,6 +41,9 @@ includes:
   'receiver:winlog':
     taskfile: ./receiver/windowseventlogreceiver/Taskfile.yml
     dir: ./receiver/windowseventlogreceiver
+  'receiver:macoslog':
+    taskfile: ./receiver/macosunifiedloggingreceiver/Taskfile.yml
+    dir: ./receiver/macosunifiedloggingreceiver
   superv:
     taskfile: ./superv/Taskfile.yml
     dir: ./superv
@@ -79,6 +84,7 @@ tasks:
     desc: 'Run unit tests for all modules'
     cmds: # We use cmds instead of deps to have deterministic order and output
       - task: receiver:winlog:test
+      - task: receiver:macoslog:test
       - task: superv:test
       - task: builder:test
 
@@ -262,6 +268,42 @@ tasks:
     cmds:
       - cmd: |
           echo "{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}"
+
+  go:mod:tidy:
+    desc: 'Run go mod tidy in all modules'
+
+    requires:
+      vars: ["GO_MODULES"]
+
+    cmds:
+      - for:
+          var: GO_MODULES
+          as: CURRENT
+        cmd: cd {{.CURRENT}} && go mod tidy
+
+  go:fix:
+    desc: 'Run go fix in all modules'
+
+    requires:
+      vars: ["GO_MODULES"]
+
+    cmds:
+      - for:
+          var: GO_MODULES
+          as: CURRENT
+        cmd: cd {{.CURRENT}} && go fix ./... || true
+
+  go:lint:
+    desc: 'Run golangci-lint in all modules'
+
+    requires:
+      vars: ["GO_MODULES"]
+
+    cmds:
+      - for:
+          var: GO_MODULES
+          as: CURRENT
+        cmd: cd {{.CURRENT}} && golangci-lint run -c {{.ROOT_DIR}}/.golangci.yml
 
   update:dependency:
     desc: 'Update one dependency in all modules'
