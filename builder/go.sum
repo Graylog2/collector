@@ -180,8 +180,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiv
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver v0.157.0/go.mod h1:3I6pjOdOW6C3TJ4h/HWjLLr0JcRhoqhvjbQlAlXEyFY=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/journaldreceiver v0.157.0 h1:OrJLEHYnl5C2VH7IWo3cPOvDIhV0bCpO7X13MxSRDeg=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/journaldreceiver v0.157.0/go.mod h1:bgPi8N+nhENzOMOlBwbRKtHanWhiragWg8M2Tzg+LDM=
-github.com/open-telemetry/opentelemetry-collector-contrib/receiver/macosunifiedloggingreceiver v0.157.0 h1:xOEztzZOZf63wRM6neV18Zsm0JkySE0Ta741VykRg0Y=
-github.com/open-telemetry/opentelemetry-collector-contrib/receiver/macosunifiedloggingreceiver v0.157.0/go.mod h1:LTgvpr0Vp/QfGRIA3pOrWuRfivb9BjDK7xuLltiEUeU=
 github.com/pborman/getopt v0.0.0-20170112200414-7148bc3a4c30/go.mod h1:85jBQOZwpVEaDAr341tbn15RS4fCAsIst0qp7i8ex1o=
 github.com/pborman/uuid v1.2.1 h1:+ZZIw58t/ozdjRaXh/3awHfmWRbzYxJoAdNJxe/3pvw=
 github.com/pborman/uuid v1.2.1/go.mod h1:X/NO0urCmaxf9VXbdlT7C2Yzkj2IKimNn4k+gtPdI/k=

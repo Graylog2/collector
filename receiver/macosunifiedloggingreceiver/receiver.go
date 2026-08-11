@@ -1,0 +1,331 @@
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
+package macosunifiedloggingreceiver // import "github.com/Graylog2/collector/receiver/macosunifiedloggingreceiver"
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"sync"
+	"time"
+
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/extension/xextension/storage"
+	"go.opentelemetry.io/collector/pdata/plog"
+	"go.opentelemetry.io/collector/receiver"
+	"go.uber.org/zap"
+)
+
+const (
+	startLayout    = "2006-01-02 15:04:05"
+	flushBatchSize = 1000
+	// maxLineBytes matches the cap upstream applied via bufio.Scanner. The buffer is allocated
+	// once per receiver and reused across polls (see pollOnce), not per poll: unlike Scanner,
+	// which grows lazily from 64KB, bufio.NewReaderSize allocates its full size immediately, so
+	// re-creating it every poll would churn 10MB per tick at the default cadence.
+	maxLineBytes = 10 * 1024 * 1024
+)
+
+type unifiedLoggingReceiver struct {
+	cfg      *Config
+	id       component.ID
+	logger   *zap.Logger
+	consumer consumer.Logs
+	runner   logRunner
+	cursor   *cursor
+	cadence  *cadence
+	storage  storage.Client
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
+	now      func() time.Time
+	// maxLineBytes caps a single ndjson line; longer lines are skipped. A field (not the
+	// const directly) so tests can exercise the skip path without a multi-megabyte line.
+	maxLineBytes int
+	// br is the line reader, retained across polls so its maxLineBytes-sized buffer is
+	// allocated once rather than per poll. Only ever touched by the single poll goroutine.
+	br *bufio.Reader
+	// lastPersisted is the cursor as it was last successfully written, so an idle poll does not
+	// rewrite an identical value. Updated only after a successful Set, so a failed write is
+	// retried on the next poll. Only ever touched by the single poll goroutine.
+	lastPersisted []byte
+}
+
+func newUnifiedLoggingReceiver(cfg *Config, set receiver.Settings, consumer consumer.Logs, runner logRunner) *unifiedLoggingReceiver {
+	return &unifiedLoggingReceiver{
+		cfg:          cfg,
+		id:           set.ID,
+		logger:       set.Logger,
+		consumer:     consumer,
+		runner:       runner,
+		cursor:       newCursor(predicateHash(cfg.Predicate)),
+		cadence:      newCadence(cfg.MinPollInterval, cfg.MaxPollInterval),
+		now:          time.Now,
+		maxLineBytes: maxLineBytes,
+	}
+}
+
+func (r *unifiedLoggingReceiver) Start(ctx context.Context, host component.Host) error {
+	// Startup work uses the collector's Start context so a startup deadline or cancellation is
+	// honored. The polling goroutine below deliberately does not: the collector cancels this
+	// context once Start returns, which would kill the receiver immediately.
+	client, err := getStorageClient(ctx, host, r.cfg.StorageID, r.id)
+	if err != nil {
+		return err
+	}
+	r.storage = client
+
+	// A read failure is fatal rather than a silent fresh start: we cannot tell "no cursor yet"
+	// from "cursor unreadable", and guessing the former re-ingests up to max_log_age of logs.
+	// For a bbolt-backed file_storage this means a corrupt or unreadable store, not a blip.
+	data, err := client.Get(ctx, cursorStorageKey)
+	if err != nil {
+		return fmt.Errorf("could not read persisted cursor from storage extension %q: %w", *r.cfg.StorageID, err)
+	}
+	if len(data) > 0 {
+		switch c, lerr := loadCursor(data); {
+		case lerr != nil:
+			r.logger.Warn("could not load persisted cursor; starting fresh", zap.Error(lerr))
+		case c.predicateHash != r.cursor.predicateHash:
+			r.logger.Info("predicate changed since last run; discarding persisted cursor and starting fresh",
+				zap.String("persisted", c.predicateHash), zap.String("current", r.cursor.predicateHash))
+		default:
+			r.cursor = c
+		}
+	}
+
+	pollCtx, cancel := context.WithCancel(context.Background())
+	r.cancel = cancel
+	r.wg.Go(func() {
+		r.readLogs(pollCtx)
+	})
+	return nil
+}
+
+func (r *unifiedLoggingReceiver) Shutdown(ctx context.Context) error {
+	if r.cancel != nil {
+		r.cancel()
+	}
+	r.wg.Wait()
+	if r.storage != nil {
+		return r.storage.Close(ctx)
+	}
+	return nil
+}
+
+func (r *unifiedLoggingReceiver) readLogs(ctx context.Context) {
+	for {
+		count, err := r.pollOnce(ctx)
+		if err != nil && ctx.Err() == nil {
+			r.logger.Error("log poll failed", zap.Error(err))
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(r.cadence.next(count)):
+		}
+	}
+}
+
+// startArgValue computes the next --start. A persisted cursor is honored as-is so no gap is
+// ever skipped on resume; max_log_age (or an explicit start_time) bounds only a cold start.
+func (r *unifiedLoggingReceiver) startArgValue() string {
+	cur := r.cursor.startArg()
+	if cur == "" {
+		// Cold start: bound the initial read.
+		if r.cfg.StartTime != "" {
+			return r.cfg.StartTime
+		}
+		return r.now().UTC().Add(-r.cfg.MaxLogAge).Format(startLayout)
+	}
+	// Resume: read from the cursor even if it predates max_log_age, so an outage longer than
+	// max_log_age does not silently drop the gap. Warn when it does — the store may already
+	// have aged out part of that gap (a source limit we cannot recover from).
+	// For MaxLogAge of 0, we never warn, it would always be true and just add noise
+	if floor := r.now().UTC().Add(-r.cfg.MaxLogAge).Format(startLayout); cur < floor && r.cfg.MaxLogAge != 0 {
+		r.logger.Warn("resuming from a cursor older than max_log_age; logs in the gap may have aged out of the store",
+			zap.String("cursor", cur), zap.String("max_log_age_floor", floor))
+	}
+	return cur
+}
+
+func (r *unifiedLoggingReceiver) liveArgs(start string) []string {
+	args := []string{"show", "--style", "ndjson", "--start", start + "+0000"}
+	if r.cfg.Predicate != "" {
+		args = append(args, "--predicate", r.cfg.Predicate)
+	}
+	return args
+}
+
+func (r *unifiedLoggingReceiver) pollOnce(ctx context.Context) (int, error) {
+	// A per-poll context so an early exit (consume rejection) terminates the still-running
+	// log subprocess instead of leaking it until the whole poll drains.
+	pollCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	stdout, wait, err := r.runner.Run(pollCtx, r.liveArgs(r.startArgValue()))
+	if err != nil {
+		return 0, fmt.Errorf("failed to start log: %w", err)
+	}
+
+	r.cursor.beginPoll()
+	emitted := 0
+	var consumeErr error
+
+	// Events are buffered per whole second and delivered as a unit. The cursor advances over
+	// a second only after its ConsumeLogs is accepted (recordDelivered), so a rejected
+	// second is never skipped: the next poll re-reads it from the durable source, and the
+	// existing boundary-second dedup suppresses the records already delivered.
+	var pending []*logEvent
+	curSec := ""
+	flush := func() bool {
+		if len(pending) == 0 {
+			return true
+		}
+		logs, records := newBatch()
+		for _, e := range pending {
+			e.setLogRecord(records.AppendEmpty(), r.now())
+		}
+		if cerr := r.consumer.ConsumeLogs(pollCtx, logs); cerr != nil {
+			consumeErr = cerr
+			return false
+		}
+		r.cursor.recordDelivered(pending)
+		emitted += len(pending)
+		pending = pending[:0]
+		return true
+	}
+
+	// Reuse the existing buffer when it is already the right size; a test that lowers
+	// maxLineBytes after construction gets a correctly-sized one on its first poll.
+	if r.br == nil || r.br.Size() != r.maxLineBytes {
+		r.br = bufio.NewReaderSize(stdout, r.maxLineBytes)
+	} else {
+		r.br.Reset(stdout)
+	}
+	br := r.br
+	var scanErr error
+readLoop:
+	for {
+		if pollCtx.Err() != nil {
+			break
+		}
+		line, oversized, rerr := nextLine(br)
+		if oversized > 0 {
+			// A single line longer than the cap would otherwise stall the reader forever;
+			// skip it (with a diagnostic) so the poll keeps making forward progress.
+			r.logger.Warn("skipping oversized log line",
+				zap.Int("bytes", oversized), zap.Int("max_bytes", r.maxLineBytes))
+		}
+		if len(line) > 0 {
+			e, perr := parseLogEvent(line)
+			switch {
+			case perr != nil:
+				// Dropped permanently, not retried: an event we cannot time cannot be placed
+				// against the cursor. Error-level because it is silent data loss, and `log`
+				// emits a fixed format so this should never fire in normal operation.
+				r.logger.Error("dropping unparseable log line", zap.Error(perr))
+			case e == nil:
+				// non-event (footer, blank line)
+			default:
+				if sec := e.utcSecondClamped; sec != curSec {
+					if !flush() { // deliver the now-complete second before moving on
+						break readLoop
+					}
+					curSec = sec
+				}
+				if r.cursor.shouldEmit(e) {
+					pending = append(pending, e)
+					if len(pending) >= flushBatchSize {
+						if !flush() {
+							break readLoop
+						}
+					}
+				} else {
+					// e was already delivered in a prior poll (that is why it dedups). Carry
+					// its identity forward so the committed boundary second keeps deduping it
+					// once new same-second events advance the batch; otherwise the dedup set
+					// would shrink to only this poll's new arrivals and re-emit e next time.
+					r.cursor.recordDelivered([]*logEvent{e})
+				}
+			}
+		}
+		if rerr != nil {
+			if rerr != io.EOF {
+				scanErr = rerr
+			}
+			break
+		}
+	}
+
+	if consumeErr != nil {
+		cancel() // stop the log subprocess so wait() returns promptly
+	}
+	stderr, werr := wait()
+	if consumeErr == nil {
+		flush() // the final buffered second
+	}
+
+	// Fold the delivered seconds into the committed cursor and persist. batchSecond reflects
+	// only delivered data, so this is safe to run even after a consume error — it advances
+	// exactly to the last second that was accepted.
+	//
+	// The write deliberately does not inherit ctx's cancellation. Shutdown cancels ctx while a
+	// poll is in flight, so by the time we get here on the final poll ctx is already done — and
+	// this is the one write that must not be lost: dropping it re-emits that poll's events as
+	// duplicates on the next start. Values (deadlines aside) still propagate.
+	//
+	// An idle poll leaves the cursor byte-identical (commit is a no-op on an empty batch), so the
+	// write is skipped — at a 1s floor that is otherwise a storage write per second forever.
+	// cursor.marshal sorts its seen set, without which these bytes would differ on every call.
+	r.cursor.commit()
+	if r.storage != nil {
+		if data, merr := r.cursor.marshal(); merr == nil && !bytes.Equal(data, r.lastPersisted) {
+			if serr := r.storage.Set(context.WithoutCancel(ctx), cursorStorageKey, data); serr != nil {
+				r.logger.Warn("failed to persist cursor", zap.Error(serr))
+			} else {
+				r.lastPersisted = data
+			}
+		}
+	}
+
+	if consumeErr != nil {
+		return emitted, fmt.Errorf("consume failed: %w", consumeErr)
+	}
+	if scanErr != nil {
+		return emitted, fmt.Errorf("error reading log output: %w", scanErr)
+	}
+	if werr != nil && ctx.Err() == nil {
+		return emitted, fmt.Errorf("log exited with error: %w (stderr: %s)", werr, stderr)
+	}
+	return emitted, nil
+}
+
+func newBatch() (plog.Logs, plog.LogRecordSlice) {
+	logs := plog.NewLogs()
+	rl := logs.ResourceLogs().AppendEmpty()
+	sl := rl.ScopeLogs().AppendEmpty()
+	return logs, sl.LogRecords()
+}
+
+// nextLine reads one newline-terminated line from br. A line that fills the reader buffer
+// without a newline (i.e. longer than the buffer's byte cap) is discarded up to the next
+// newline and reported via oversized>0 with a nil line, so the caller can skip it instead of
+// stalling. The returned line aliases br's buffer and is valid only until the next read.
+func nextLine(br *bufio.Reader) (line []byte, oversized int, err error) {
+	line, err = br.ReadSlice('\n')
+	if !errors.Is(err, bufio.ErrBufferFull) {
+		return line, 0, err
+	}
+	oversized = len(line)
+	for errors.Is(err, bufio.ErrBufferFull) {
+		var chunk []byte
+		chunk, err = br.ReadSlice('\n')
+		oversized += len(chunk)
+	}
+	return nil, oversized, err
+}

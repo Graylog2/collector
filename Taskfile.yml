@@ -27,10 +27,12 @@ vars:
     -f .license.template.otel
     -ignore '**/*.{yml,yaml}'
     receiver/windowseventlogreceiver
+    receiver/macosunifiedloggingreceiver
   # Add new Go modules here!
   GO_MODULES:
     - .
     - superv
+    - receiver/macosunifiedloggingreceiver
     - receiver/windowseventlogreceiver
     #- extension/sidecar
     - internal/tools
@@ -39,6 +41,9 @@ includes:
   'receiver:winlog':
     taskfile: ./receiver/windowseventlogreceiver/Taskfile.yml
     dir: ./receiver/windowseventlogreceiver
+  'receiver:macoslog':
+    taskfile: ./receiver/macosunifiedloggingreceiver/Taskfile.yml
+    dir: ./receiver/macosunifiedloggingreceiver
   superv:
     taskfile: ./superv/Taskfile.yml
     dir: ./superv
@@ -79,6 +84,7 @@ tasks:
     desc: 'Run unit tests for all modules'
     cmds: # We use cmds instead of deps to have deterministic order and output
       - task: receiver:winlog:test
+      - task: receiver:macoslog:test
       - task: superv:test
       - task: builder:test
 
