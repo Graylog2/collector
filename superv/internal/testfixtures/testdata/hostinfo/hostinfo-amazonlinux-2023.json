@@ -1,0 +1,15 @@
+{
+  "hostname": "09425185f0ec",
+  "uptime": 436414,
+  "bootTime": 1785324667,
+  "procs": 1,
+  "os": "linux",
+  "platform": "amazon",
+  "platformFamily": "rhel",
+  "platformVersion": "2023.12.20260724",
+  "kernelVersion": "7.0.0-28-generic",
+  "kernelArch": "x86_64",
+  "virtualizationSystem": "docker",
+  "virtualizationRole": "guest",
+  "hostId": "bd5b5796-fec7-454b-9483-5eb014ea99cf"
+}

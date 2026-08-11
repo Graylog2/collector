@@ -1,0 +1,5 @@
+type = "a"
+message = "Add `os.description` attribute to Collector information."
+
+issues = ["Graylog2/graylog2-server#25176"]
+pulls = ["87"]

@@ -1,0 +1,15 @@
+{
+  "hostname": "83fcd2bc3eac",
+  "uptime": 17904,
+  "bootTime": 1785485632,
+  "procs": 1,
+  "os": "linux",
+  "platform": "almalinux",
+  "platformFamily": "rhel",
+  "platformVersion": "9.7",
+  "kernelVersion": "7.0.0-28-generic",
+  "kernelArch": "x86_64",
+  "virtualizationSystem": "docker",
+  "virtualizationRole": "guest",
+  "hostId": "bd5b5796-fec7-454b-9483-5eb014ea99cf"
+}
