@@ -19,9 +19,6 @@ var (
 
 	// DeprecatedType is the previous component type, still accepted as an alias.
 	DeprecatedType = component.MustNewType("macosunifiedlogging")
-
-	// ScopeName identifies this receiver as the instrumentation scope on emitted logs.
-	ScopeName = "github.com/Graylog2/collector/receiver/macosunifiedloggingreceiver"
 )
 
 // LogsStability is the stability level of this receiver's logs pipeline.
