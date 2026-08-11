@@ -17,6 +17,7 @@ updates:
       #- "**/*"
       - "/"
       - "/builder"
+      - "/receiver/macosunifiedloggingreceiver"
       - "/receiver/windowseventlogreceiver"
       - "/superv"
     ignore:
