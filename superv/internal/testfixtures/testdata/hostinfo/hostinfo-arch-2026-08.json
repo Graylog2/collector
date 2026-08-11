@@ -1,0 +1,15 @@
+{
+  "hostname": "6b5cc7679706",
+  "uptime": 436271,
+  "bootTime": 1785324667,
+  "procs": 1,
+  "os": "linux",
+  "platform": "arch",
+  "platformFamily": "arch",
+  "platformVersion": "20260726.0.562117",
+  "kernelVersion": "7.0.0-28-generic",
+  "kernelArch": "x86_64",
+  "virtualizationSystem": "docker",
+  "virtualizationRole": "guest",
+  "hostId": "bd5b5796-fec7-454b-9483-5eb014ea99cf"
+}

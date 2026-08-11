@@ -27,6 +27,15 @@ vars:
     -f .license.template.otel
     -ignore '**/*.{yml,yaml}'
     receiver/windowseventlogreceiver
+    receiver/macosunifiedloggingreceiver
+  # Add new Go modules here!
+  GO_MODULES:
+    - .
+    - superv
+    - receiver/macosunifiedloggingreceiver
+    - receiver/windowseventlogreceiver
+    #- extension/sidecar
+    - internal/tools
   MACOS_PAYLOAD_PKG_DIR: '{{.ROOT_DIR}}/dist/macos'
   MACOS_TARGET_PKG_DIR: '{{.ROOT_DIR}}/target/macos'
   MACOS_BINARY_PATH: '{{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}-darwin-arm64'
@@ -35,6 +44,9 @@ includes:
   'receiver:winlog':
     taskfile: ./receiver/windowseventlogreceiver/Taskfile.yml
     dir: ./receiver/windowseventlogreceiver
+  'receiver:macoslog':
+    taskfile: ./receiver/macosunifiedloggingreceiver/Taskfile.yml
+    dir: ./receiver/macosunifiedloggingreceiver
   superv:
     taskfile: ./superv/Taskfile.yml
     dir: ./superv
@@ -75,6 +87,7 @@ tasks:
     desc: 'Run unit tests for all modules'
     cmds: # We use cmds instead of deps to have deterministic order and output
       - task: receiver:winlog:test
+      - task: receiver:macoslog:test
       - task: superv:test
       - task: builder:test
 
@@ -86,10 +99,10 @@ tasks:
   vulncheck:
     desc: 'Run govulncheck for all modules'
     cmds:
-      - go tool govulncheck ./...
-      - go tool govulncheck -C builder ./...
-      - go tool govulncheck -C superv ./...
-      - go tool govulncheck -C receiver/windowseventlogreceiver ./...
+      - for:
+          var: GO_MODULES
+          as: CURRENT
+        cmd: go tool govulncheck -C {{.CURRENT}} ./...
 
   all:
     desc: 'Cross-compile collector for all platforms with full preflight'
@@ -295,3 +308,82 @@ tasks:
     cmds:
       - cmd: |
           echo "{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}"
+
+  go:mod:tidy:
+    desc: 'Run go mod tidy in all modules'
+
+    requires:
+      vars: ["GO_MODULES"]
+
+    cmds:
+      - for:
+          var: GO_MODULES
+          as: CURRENT
+        cmd: cd {{.CURRENT}} && go mod tidy
+
+  go:fix:
+    desc: 'Run go fix in all modules'
+
+    requires:
+      vars: ["GO_MODULES"]
+
+    cmds:
+      - for:
+          var: GO_MODULES
+          as: CURRENT
+        cmd: cd {{.CURRENT}} && go fix ./... || true
+
+  go:lint:
+    desc: 'Run golangci-lint in all modules'
+
+    requires:
+      vars: ["GO_MODULES"]
+
+    cmds:
+      - for:
+          var: GO_MODULES
+          as: CURRENT
+        cmd: cd {{.CURRENT}} && golangci-lint run -c {{.ROOT_DIR}}/.golangci.yml
+
+  update:dependency:
+    desc: 'Update one dependency in all modules'
+
+    requires:
+      vars: ["GO_MODULES", "PKG"]
+
+    cmds:
+      - for:
+          var: GO_MODULES
+          as: CURRENT
+        cmd: cd {{.CURRENT}} && go get -u {{.PKG}} && go mod tidy
+
+  update:dependencies:
+    desc: 'Update dependencies in all modules'
+
+    vars:
+      OTEL_BETA_VERSION:
+        sh: go list -m go.opentelemetry.io/collector/cmd/builder@latest | awk '{print $2}'
+      OTEL_STABLE_VERSION:
+        sh: go list -m go.opentelemetry.io/collector/confmap/provider/envprovider@latest | awk '{print $2}'
+      OTEL_CONTRIB_VERSION:
+        sh: go list -m github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver@latest | awk '{print $2}'
+
+    requires:
+      vars: ["GO_MODULES"]
+
+    preconditions:
+      - sh: 'test "{{.OTEL_BETA_VERSION}}" = "{{.OTEL_CONTRIB_VERSION}}"'
+        msg: 'Latest OTel core and contrib releases are not aligned yet'
+
+    cmds:
+      - go get go.opentelemetry.io/collector/cmd/builder@{{.OTEL_BETA_VERSION}}
+      - cmd: >-
+          sed -i -E
+          -e 's#((go\.opentelemetry\.io/collector|github\.com/open-telemetry/opentelemetry-collector-contrib)/[^[:space:]]+)[[:space:]]+v0\.[0-9]+\.[0-9]+#\1 {{.OTEL_BETA_VERSION}}#g'
+          -e 's#((go\.opentelemetry\.io/collector|github\.com/open-telemetry/opentelemetry-collector-contrib)/[^[:space:]]+)[[:space:]]+v1\.[0-9]+\.[0-9]+#\1 {{.OTEL_STABLE_VERSION}}#g'
+          builder/builder-config.yaml
+      - for:
+          var: GO_MODULES
+          as: CURRENT
+        cmd: cd {{.CURRENT}} && go get -u -t ./... && go mod tidy
+      - task: builder:generate

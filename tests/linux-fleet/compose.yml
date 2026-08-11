@@ -1,0 +1,56 @@
+name: "collector-fleet"
+
+services:
+  collector-ubuntu:
+    image: "jrei/systemd-ubuntu:26.04"
+    cpu_count: 1
+    mem_limit: "128mb"
+    scale: 10
+    extra_hosts:
+      server: "host-gateway"
+    privileged: true
+    cgroup: "host"
+    stop_signal: "SIGRTMIN+3"
+    command: |
+      bash -c 'mkdir -p /etc/systemd/system/graylog-collector.service.d \
+        && install -d -o nobody -g nogroup /var/lib/graylog-collector \
+        && printf "[Service]\nUser=nobody\nGroup=nogroup\n" > /etc/systemd/system/graylog-collector.service.d/overrides.conf \
+        && systemctl enable graylog-collector.service \
+        && /lib/systemd/systemd
+      '
+    tmpfs:
+      - "/run"
+      - "/run/lock"
+      - "/tmp"
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:rw"
+      - "../../target/graylog-collector:/usr/bin/graylog-collector:ro"
+      - "../../dist/linux/graylog-collector.service:/etc/systemd/system/graylog-collector.service:ro"
+      - "./.env:/etc/graylog/collector/enrollment.env:ro"
+
+  collector-debian:
+    image: "jrei/systemd-debian:13"
+    cpu_count: 1
+    mem_limit: "128mb"
+    scale: 10
+    extra_hosts:
+      server: "host-gateway"
+    privileged: true
+    cgroup: "host"
+    stop_signal: "SIGRTMIN+3"
+    command: |
+      bash -c 'mkdir -p /etc/systemd/system/graylog-collector.service.d \
+        && install -d -o nobody -g nogroup /var/lib/graylog-collector \
+        && printf "[Service]\nUser=nobody\nGroup=nogroup\n" > /etc/systemd/system/graylog-collector.service.d/overrides.conf \
+        && systemctl enable graylog-collector.service \
+        && /lib/systemd/systemd
+      '
+    tmpfs:
+      - "/run"
+      - "/run/lock"
+      - "/tmp"
+    volumes:
+      - "/sys/fs/cgroup:/sys/fs/cgroup:rw"
+      - "../../target/graylog-collector:/usr/bin/graylog-collector:ro"
+      - "../../dist/linux/graylog-collector.service:/etc/systemd/system/graylog-collector.service:ro"
+      - "./.env:/etc/graylog/collector/enrollment.env:ro"

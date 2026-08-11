@@ -1,0 +1,14 @@
+# Test configurations for macOS Unified Logging receiver
+
+# Live mode with default settings
+live_mode_defaults:
+  storage: file_storage/default
+  max_poll_interval: 30s
+  max_log_age: 24h
+
+# Live mode with predicate
+live_mode_predicate:
+  storage: file_storage/default
+  predicate: "process == 'kernel' AND messageType == 'Error'"
+  max_poll_interval: 15s
+  max_log_age: 12h
