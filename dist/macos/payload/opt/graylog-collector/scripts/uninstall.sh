@@ -21,7 +21,7 @@ INSTALL_DIR="/opt/graylog-collector"
 USR_BIN="/usr/local/bin/graylog-collector"
 DATA_DIR="/Library/Application Support/Graylog/Collector"
 PARENT_DIR="/Library/Application Support/Graylog"
-LOG_FILE="/var/log/com.graylog.collector/graylog-collector.log"
+LOG_DIR="/var/log/com.graylog.collector"
 
 PURGE="false"
 
@@ -60,7 +60,7 @@ launchctl bootout "system/${LABEL}" 2>/dev/null || true
 # The :? guards are defensive: never let an empty variable turn into "rm -rf /".
 echo "Removing files..."
 rm -f "$PLIST"
-rm -f "$LOG_FILE"
+rm -rf "$LOG_DIR"
 rm -f "$USR_BIN"
 
 # Drop the package receipt so pkgutil no longer reports the product installed.
