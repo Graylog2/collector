@@ -15,7 +15,7 @@
 //
 // SPDX-License-Identifier: SSPL-1.0
 
-//go:build unix && !darwin
+//go:build darwin
 
 package config
 
@@ -28,10 +28,10 @@ import (
 func TestConfigDefaultsDirectories(t *testing.T) {
 	cfg := DefaultConfig()
 
-	assert.Equal(t, "/var/lib/graylog-collector/supervisor", cfg.Persistence.Dir)
-	assert.Equal(t, "/var/lib/graylog-collector/storage", cfg.Agent.StorageDir)
-	assert.Equal(t, "/var/lib/graylog-collector/keys", cfg.Keys.Dir)
-	assert.Equal(t, "/var/lib/graylog-collector/packages", cfg.Packages.StorageDir)
-	assert.Equal(t, "/var/lib/graylog-collector/logs/supervisor.log", cfg.Logging.File)
-	assert.Equal(t, "/var/lib/graylog-collector/logs/agent.log", cfg.Agent.Logging.File)
+	assert.Equal(t, "/Library/Application Support/Graylog/Collector/supervisor", cfg.Persistence.Dir)
+	assert.Equal(t, "/Library/Application Support/Graylog/Collector/storage", cfg.Agent.StorageDir)
+	assert.Equal(t, "/Library/Application Support/Graylog/Collector/keys", cfg.Keys.Dir)
+	assert.Equal(t, "/Library/Application Support/Graylog/Collector/packages", cfg.Packages.StorageDir)
+	assert.Equal(t, "/Library/Application Support/Graylog/Collector/logs/supervisor.log", cfg.Logging.File)
+	assert.Equal(t, "/Library/Application Support/Graylog/Collector/logs/agent.log", cfg.Agent.Logging.File)
 }
