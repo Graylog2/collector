@@ -11,6 +11,9 @@ mkdir -p "/Library/Application Support/Graylog/Collector"
 chmod 755 "/Library/Application Support/Graylog"
 chmod 755 "/Library/Application Support/Graylog/Collector"
 
+mkdir -p "/var/log/com.graylog.collector"
+chmod 755 "/var/log/com.graylog.collector"
+
 launchctl bootout system "$PLIST" 2>/dev/null || true
 launchctl bootstrap system "$PLIST"
 launchctl enable "system/$LABEL"

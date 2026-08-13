@@ -223,7 +223,7 @@ tasks:
       - cmd: lipo -detailed_info {{.MACOS_UNIVERSAL_BINARY_PATH}}
       - cmd: cp -v {{.MACOS_UNIVERSAL_BINARY_PATH}} {{.MACOS_TARGET_BIN_DIR}}/graylog-collector
       # ensure scripts are always executable, the installer would otherwise fail
-      - cmd: chmod +x {{.MACOS_TARGET_PKG_DIR}}/scripts/preinstall {{.MACOS_TARGET_PKG_DIR}}/scripts/preinstall
+      - cmd: chmod +x {{.MACOS_TARGET_PKG_DIR}}/scripts/preinstall {{.MACOS_TARGET_PKG_DIR}}/scripts/postinstall
       # ensure bundled payload binaries/scripts are executable on the target
       - cmd: chmod +x {{.MACOS_TARGET_BIN_DIR}}/graylog-collector
       - cmd: chmod +x {{.MACOS_TARGET_PKG_DIR}}/payload/opt/graylog-collector/scripts/uninstall.sh

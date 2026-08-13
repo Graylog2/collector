@@ -6,11 +6,9 @@
     <key>Label</key>
     <string>com.graylog.collector</string>
 
-    <key>Program</key>
-    <string>/opt/graylog-collector/bin/graylog-collector</string>
-
     <key>ProgramArguments</key>
     <array>
+      <string>/opt/graylog-collector/bin/graylog-collector</string>
       <string>supervisor</string>
     </array>
 
