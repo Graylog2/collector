@@ -6,9 +6,11 @@
     <key>Label</key>
     <string>com.graylog.collector</string>
 
+    <key>Program</key>
+    <string>/opt/graylog-collector/bin/graylog-collector</string>
+
     <key>ProgramArguments</key>
     <array>
-      <string>/usr/local/graylog-collector/bin/graylog-collector</string>
       <string>supervisor</string>
     </array>
 
@@ -18,10 +20,14 @@
     <key>KeepAlive</key>
     <true/>
 
+    <!-- The Collector default graceful shutdown timeout is 30 seconds -->
+    <key>ExitTimeOut</key>
+    <integer>60</integer>
+
     <key>StandardOutPath</key>
-    <string>/var/log/graylog-collector.log</string>
+    <string>/var/log/com.graylog.collector/graylog-collector.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/var/log/graylog-collector.err.log</string>
+    <string>/var/log/com.graylog.collector/graylog-collector.log</string>
   </dict>
 </plist>

@@ -17,13 +17,11 @@ set -euo pipefail
 LABEL="com.graylog.collector"
 PKG_ID="com.graylog.collector"          # pkgbuild --identifier
 PLIST="/Library/LaunchDaemons/${LABEL}.plist"
-INSTALL_DIR="/usr/local/graylog-collector"
+INSTALL_DIR="/opt/graylog-collector"
+USR_BIN="/usr/local/bin/graylog-collector"
 DATA_DIR="/Library/Application Support/Graylog/Collector"
 PARENT_DIR="/Library/Application Support/Graylog"
-LOG_FILES=(
-  "/var/log/graylog-collector.log"
-  "/var/log/graylog-collector.err.log"
-)
+LOG_FILE="/var/log/com.graylog.collector/graylog-collector.log"
 
 PURGE="false"
 
@@ -62,9 +60,8 @@ launchctl bootout "system/${LABEL}" 2>/dev/null || true
 # The :? guards are defensive: never let an empty variable turn into "rm -rf /".
 echo "Removing files..."
 rm -f "$PLIST"
-for f in "${LOG_FILES[@]}"; do
-  rm -f "$f"
-done
+rm -f "$LOG_FILE"
+rm -f "$USR_BIN"
 
 # Drop the package receipt so pkgutil no longer reports the product installed.
 if pkgutil --pkg-info "$PKG_ID" >/dev/null 2>&1; then
