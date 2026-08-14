@@ -11,7 +11,7 @@ import (
 // ev builds a logEvent the way parseLogEvent would, deriving parsedTime/utcSecond from ts so
 // the cursor sees the same UTC-normalized second production code does. Test timestamps are
 // always valid, so a parse error here is a bug in the test's input.
-func ev(mach, thread int64, boot, ts string) *logEvent {
+func ev(mach, thread uint64, boot, ts string) *logEvent {
 	t, err := time.Parse(timestampLayout, ts)
 	if err != nil {
 		panic("ev: invalid test timestamp " + ts + ": " + err.Error())
@@ -105,11 +105,12 @@ func TestCursor_IdlePollKeepsCursor(t *testing.T) {
 }
 
 func TestCursor_RoundTrip(t *testing.T) {
+	const highBit uint64 = 1 << 63
 	c := newCursor(predicateHash(`process == "corecaptured"`))
 	c.beginPoll()
 	p := []*logEvent{
-		ev(100, 1, "A", "2026-06-29 10:00:01.000000+0000"),
-		ev(150, 2, "A", "2026-06-29 10:00:01.500000+0000"),
+		ev(highBit+100, highBit+1, "A", "2026-06-29 10:00:01.000000+0000"),
+		ev(highBit+150, highBit+2, "A", "2026-06-29 10:00:01.500000+0000"),
 	}
 	c.shouldEmit(p[0])
 	c.shouldEmit(p[1])
@@ -132,7 +133,7 @@ func TestCursor_RoundTrip(t *testing.T) {
 	}
 	// The restored boundary-second identities still dedupe.
 	loaded.beginPoll()
-	if loaded.shouldEmit(ev(150, 2, "A", "2026-06-29 10:00:01.500000+0000")) {
+	if loaded.shouldEmit(ev(highBit+150, highBit+2, "A", "2026-06-29 10:00:01.500000+0000")) {
 		t.Errorf("restored cursor must still dedupe boundary identities")
 	}
 }
@@ -147,7 +148,7 @@ func TestCursorMarshal_Deterministic(t *testing.T) {
 	// Several identities in one second, inserted out of order — one entry could not detect a
 	// missing sort, and Go's map ordering only varies with enough keys.
 	var evs []*logEvent
-	for _, m := range []int64{900, 100, 500, 300, 700, 200} {
+	for _, m := range []uint64{900, 100, 500, 300, 700, 200} {
 		evs = append(evs, ev(m, m%3, "A", "2026-06-29 10:00:05.100000+0000"))
 	}
 	c.recordDelivered(evs)
