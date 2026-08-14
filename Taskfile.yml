@@ -194,6 +194,7 @@ tasks:
     deps: [package:macos:pkg:prepare]
     platforms: [darwin]
     cmds:
+      - "mkdir -p {{.MACOS_TARGET_PKG_DIR}}/components"
       - >-
         pkgbuild
         --root "{{.MACOS_TARGET_PKG_DIR}}/payload"
@@ -201,6 +202,12 @@ tasks:
         --identifier "com.graylog.collector"
         --version "{{.VERSION}}"
         --install-location "/"
+        "{{.MACOS_TARGET_PKG_DIR}}/components/graylog-collector-component.pkg"
+      - >-
+        productbuild
+        --distribution "{{.ROOT_DIR}}/dist/macos/distribution.xml"
+        --package-path "{{.MACOS_TARGET_PKG_DIR}}/components"
+        --resources "{{.MACOS_TARGET_PKG_DIR}}/resources"
         "{{.ROOT_DIR}}/target/graylog-collector-{{.VERSION}}-darwin-universal.pkg"
 
   package:macos:pkg:prepare:
@@ -213,7 +220,13 @@ tasks:
       MACOS_TARGET_BIN_DIR: '{{.MACOS_TARGET_PKG_DIR}}/payload/opt/graylog-collector/bin'
     cmds:
       - cmd: mkdir -p {{.MACOS_TARGET_BIN_DIR}}
-      - cmd: cp -v -R {{.MACOS_PAYLOAD_PKG_DIR}}/ {{.MACOS_TARGET_PKG_DIR}}
+      - cmd: mkdir -p "{{.MACOS_TARGET_PKG_DIR}}/payload"
+      - cmd: cp -v -R {{.MACOS_PAYLOAD_PKG_DIR}}/payload/ {{.MACOS_TARGET_PKG_DIR}}/payload
+      - cmd: mkdir -p "{{.MACOS_TARGET_PKG_DIR}}/scripts"
+      - cmd: cp -v -R {{.MACOS_PAYLOAD_PKG_DIR}}/scripts/ {{.MACOS_TARGET_PKG_DIR}}/scripts
+      - cmd: mkdir -p "{{.MACOS_TARGET_PKG_DIR}}/resources"
+      - cmd: cp -v "{{.ROOT_DIR}}/LICENSE" "{{.MACOS_TARGET_PKG_DIR}}/resources/LICENSE.txt"
+      - cmd: cp -v "{{.ROOT_DIR}}/dist/macos/background.png" "{{.MACOS_TARGET_PKG_DIR}}/resources/background.png"
       - cmd: >-
           lipo
           -create
