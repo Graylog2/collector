@@ -255,7 +255,7 @@ tasks:
       - cmd: chmod +x "{{.MACOS_TARGET_APP_DIR}}/Contents/MacOS/graylog-collector"
       - cmd: >-
           "{{.ROOT_DIR}}/dist/macos/make-icns.sh"
-          "{{.ROOT_DIR}}/dist/macos/background.png"
+          "{{.ROOT_DIR}}/dist/graylog.png"
           "{{.MACOS_TARGET_APP_DIR}}/Contents/Resources/AppIcon.icns"
       - cmd: >-
           /usr/libexec/PlistBuddy
