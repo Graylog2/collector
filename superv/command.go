@@ -231,32 +231,16 @@ func initLogger(loggingCfg config.LoggingConfig, debug bool) (*zap.Logger, error
 	}
 
 	var makeEncoderCfg func() zapcore.EncoderConfig
+	var makeEncoder func(zapcore.EncoderConfig) zapcore.Encoder
 	if loggingCfg.Format == jsonLoggingFormat {
 		makeEncoderCfg = zap.NewProductionEncoderConfig
+		makeEncoder = zapcore.NewJSONEncoder
 	} else {
 		makeEncoderCfg = zap.NewDevelopmentEncoderConfig
+		makeEncoder = zapcore.NewConsoleEncoder
 	}
 
-	stderrEncCfg := makeEncoderCfg()
-	fileEncCfg := makeEncoderCfg()
-
-	// color + JSON make no sense, silently ignore color in that case
-	if loggingCfg.Color && loggingCfg.Format != jsonLoggingFormat {
-		enableConsoleColors()
-		stderrEncCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
-		// no color in file encoder
-	}
-
-	var stderrEnc, fileEnc zapcore.Encoder
-	if loggingCfg.Format == jsonLoggingFormat {
-		stderrEnc = zapcore.NewJSONEncoder(stderrEncCfg)
-		fileEnc = zapcore.NewJSONEncoder(fileEncCfg)
-	} else {
-		stderrEnc = zapcore.NewConsoleEncoder(stderrEncCfg)
-		fileEnc = zapcore.NewConsoleEncoder(fileEncCfg)
-	}
-
-	var cores []zapcore.Core
+	var core zapcore.Core
 	if loggingCfg.File != "" {
 		if err := os.MkdirAll(filepath.Dir(loggingCfg.File), 0750); err != nil {
 			return nil, fmt.Errorf("create log directory: %w", err)
@@ -269,15 +253,25 @@ func initLogger(loggingCfg config.LoggingConfig, debug bool) (*zap.Logger, error
 			MaxAge:     cmp.Or(rot.MaxAge, 30),
 			LocalTime:  true,
 		}
-		cores = append(cores, zapcore.NewCore(fileEnc, zapcore.AddSync(rotator), zapLevel))
+
+		fileEnc := makeEncoder(makeEncoderCfg())
+		core = zapcore.NewCore(fileEnc, zapcore.AddSync(rotator), zapLevel)
 	} else {
-		cores = append(cores, zapcore.NewCore(stderrEnc, zapcore.Lock(os.Stderr), zapLevel))
+		stderrEncCfg := makeEncoderCfg()
+		// color + JSON make no sense, silently ignore color in that case
+		if loggingCfg.Color && loggingCfg.Format != jsonLoggingFormat {
+			enableConsoleColors()
+			stderrEncCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		}
+
+		stderrEnc := makeEncoder(stderrEncCfg)
+		core = zapcore.NewCore(stderrEnc, zapcore.Lock(os.Stderr), zapLevel)
 	}
 	opts := []zap.Option{zap.AddCaller()}
 	if debug {
 		opts = append(opts, zap.AddStacktrace(zap.ErrorLevel))
 	}
-	return zap.New(zapcore.NewTee(cores...), opts...), nil
+	return zap.New(core, opts...), nil
 }
 
 func runSupervisor(cmd *cobra.Command, _ []string) error {
