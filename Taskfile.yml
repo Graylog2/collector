@@ -231,7 +231,7 @@ tasks:
     internal: true
     vars:
       MACOS_UNIVERSAL_BINARY_PATH: '{{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}-darwin-universal'
-      MACOS_TARGET_APP_DIR: '{{.MACOS_TARGET_PKG_DIR}}/payload/Applications/GraylogCollector.app'
+      MACOS_TARGET_APP_DIR: '{{.MACOS_TARGET_PKG_DIR}}/payload/Applications/Graylog Collector.app'
     cmds:
       - cmd: mkdir -p "{{.MACOS_TARGET_PKG_DIR}}/payload"
       - cmd: cp -v -R {{.MACOS_PAYLOAD_PKG_DIR}}/payload/ {{.MACOS_TARGET_PKG_DIR}}/payload

@@ -17,7 +17,7 @@ set -euo pipefail
 LABEL="org.graylog.collector"
 PKG_ID="org.graylog.collector"          # pkgbuild --identifier
 PLIST="/Library/LaunchDaemons/${LABEL}.plist"
-APP_DIR="/Applications/GraylogCollector.app"
+APP_DIR="/Applications/Graylog Collector.app"
 USR_BIN="/usr/local/bin/graylog-collector"
 DATA_DIR="/Library/Application Support/Graylog/Collector"
 PARENT_DIR="/Library/Application Support/Graylog"
