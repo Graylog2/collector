@@ -199,7 +199,7 @@ tasks:
           pkgbuild
           --root "{{.MACOS_TARGET_PKG_DIR}}/payload"
           --scripts "{{.MACOS_TARGET_PKG_DIR}}/scripts"
-          --identifier "com.graylog.collector"
+          --identifier "org.graylog.collector"
           --version "{{.VERSION}}"
           --install-location "/"
           "{{.MACOS_TARGET_PKG_DIR}}/components/graylog-collector-component.pkg"

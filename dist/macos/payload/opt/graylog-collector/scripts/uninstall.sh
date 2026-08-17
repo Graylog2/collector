@@ -14,14 +14,14 @@
 #
 set -euo pipefail
 
-LABEL="com.graylog.collector"
-PKG_ID="com.graylog.collector"          # pkgbuild --identifier
+LABEL="org.graylog.collector"
+PKG_ID="org.graylog.collector"          # pkgbuild --identifier
 PLIST="/Library/LaunchDaemons/${LABEL}.plist"
 INSTALL_DIR="/opt/graylog-collector"
 USR_BIN="/usr/local/bin/graylog-collector"
 DATA_DIR="/Library/Application Support/Graylog/Collector"
 PARENT_DIR="/Library/Application Support/Graylog"
-LOG_DIR="/var/log/com.graylog.collector"
+LOG_DIR="/var/log/org.graylog.collector"
 
 PURGE="false"
 

@@ -10,14 +10,14 @@
     </allowed-os-versions>
     <choices-outline>
         <line choice="default">
-            <line choice="com.graylog.collector"/>
+            <line choice="org.graylog.collector"/>
         </line>
     </choices-outline>
     <choice id="default"/>
-    <choice id="com.graylog.collector" visible="false">
-        <pkg-ref id="com.graylog.collector"/>
+    <choice id="org.graylog.collector" visible="false">
+        <pkg-ref id="org.graylog.collector"/>
     </choice>
-    <pkg-ref id="com.graylog.collector" onConclusion="none">
+    <pkg-ref id="org.graylog.collector" onConclusion="none">
         graylog-collector-component.pkg
     </pkg-ref>
     <license file="LICENSE.txt"/>

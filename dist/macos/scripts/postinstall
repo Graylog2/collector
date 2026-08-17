@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PLIST="/Library/LaunchDaemons/com.graylog.collector.plist"
-LABEL="com.graylog.collector"
+PLIST="/Library/LaunchDaemons/org.graylog.collector.plist"
+LABEL="org.graylog.collector"
 
 chown root:wheel "$PLIST"
 chmod 644 "$PLIST"
@@ -11,8 +11,8 @@ mkdir -p "/Library/Application Support/Graylog/Collector"
 chmod 755 "/Library/Application Support/Graylog"
 chmod 755 "/Library/Application Support/Graylog/Collector"
 
-mkdir -p "/var/log/com.graylog.collector"
-chmod 755 "/var/log/com.graylog.collector"
+mkdir -p "/var/log/org.graylog.collector"
+chmod 755 "/var/log/org.graylog.collector"
 
 launchctl bootout system "$PLIST" 2>/dev/null || true
 launchctl bootstrap system "$PLIST"

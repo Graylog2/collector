@@ -4,7 +4,7 @@
 <plist version="1.0">
   <dict>
     <key>Label</key>
-    <string>com.graylog.collector</string>
+    <string>org.graylog.collector</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -23,9 +23,9 @@
     <integer>60</integer>
 
     <key>StandardOutPath</key>
-    <string>/var/log/com.graylog.collector/graylog-collector.log</string>
+    <string>/var/log/org.graylog.collector/graylog-collector.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/var/log/com.graylog.collector/graylog-collector.log</string>
+    <string>/var/log/org.graylog.collector/graylog-collector.log</string>
   </dict>
 </plist>
