@@ -218,6 +218,11 @@ tasks:
           pkgutil --check-signature
           "{{.ROOT_DIR}}/target/graylog-collector-{{.VERSION}}-darwin-universal-signed.pkg"
         if: '[ -n "$PRODUCTSIGN_IDENTITY" ]'
+      - cmd: >-
+          mv
+          "{{.ROOT_DIR}}/target/graylog-collector-{{.VERSION}}-darwin-universal-signed.pkg"
+          "{{.ROOT_DIR}}/target/graylog-collector-{{.VERSION}}-darwin-universal.pkg"
+        if: '[ -n "$PRODUCTSIGN_IDENTITY" ]'
 
   package:macos:pkg:prepare:
     desc: "Prepare input directory for pkgbuild"
