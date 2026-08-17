@@ -221,7 +221,7 @@ tasks:
 
   package:macos:pkg:prepare:
     desc: "Prepare input directory for pkgbuild"
-    deps: [builder:build:darwin:arm64, builder:build:darwin:amd64]
+    deps: [builder:build:darwin]
     platforms: [darwin]
     internal: true
     vars:

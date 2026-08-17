@@ -119,18 +119,28 @@ tasks:
           #      https://pkg.go.dev/net#hdr-Name_Resolution
           CGO_ENABLED: '1'
 
+  build:linux:
+    desc: 'Build collector for all Linux platforms'
+    cmds:
+      - task: build:linux:amd64
+      - task: build:linux:arm64
+
   build:windows:
     desc: 'Build collector for all Windows platforms'
     cmds:
       - task: build:windows:amd64
 
+  build:darwin:
+    desc: 'Build collector for all macOS platforms'
+    cmds:
+      - task: build:darwin:amd64
+      - task: build:darwin:arm64
+
   build:unix:
     desc: 'Build collector for all Unix platforms'
     cmds:
-      - task: build:linux:amd64
-      - task: build:linux:arm64
-      - task: build:darwin:amd64
-      - task: build:darwin:arm64
+      - task: build:linux
+      - task: build:darwin
 
   build:all:
     desc: 'Build collector for all supported platforms'
