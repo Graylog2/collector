@@ -256,9 +256,7 @@ func initLogger(loggingCfg config.LoggingConfig, debug bool) (*zap.Logger, error
 		fileEnc = zapcore.NewConsoleEncoder(fileEncCfg)
 	}
 
-	cores := []zapcore.Core{
-		zapcore.NewCore(stderrEnc, zapcore.Lock(os.Stderr), zapLevel),
-	}
+	var cores []zapcore.Core
 	if loggingCfg.File != "" {
 		if err := os.MkdirAll(filepath.Dir(loggingCfg.File), 0750); err != nil {
 			return nil, fmt.Errorf("create log directory: %w", err)
@@ -272,6 +270,8 @@ func initLogger(loggingCfg config.LoggingConfig, debug bool) (*zap.Logger, error
 			LocalTime:  true,
 		}
 		cores = append(cores, zapcore.NewCore(fileEnc, zapcore.AddSync(rotator), zapLevel))
+	} else {
+		cores = append(cores, zapcore.NewCore(stderrEnc, zapcore.Lock(os.Stderr), zapLevel))
 	}
 	opts := []zap.Option{zap.AddCaller()}
 	if debug {
