@@ -17,7 +17,7 @@
     <choice id="com.graylog.collector" visible="false">
         <pkg-ref id="com.graylog.collector"/>
     </choice>
-    <pkg-ref id="com.graylog.collector" version="0.2.1-SNAPSHOT" onConclusion="none">
+    <pkg-ref id="com.graylog.collector" onConclusion="none">
         graylog-collector-component.pkg
     </pkg-ref>
     <license file="LICENSE.txt"/>
