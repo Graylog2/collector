@@ -17,7 +17,7 @@ set -euo pipefail
 LABEL="org.graylog.collector"
 PKG_ID="org.graylog.collector"          # pkgbuild --identifier
 PLIST="/Library/LaunchDaemons/${LABEL}.plist"
-APP_DIR="/Applications/Graylog Collector.app"
+APP_DIR="/Library/Application Support/Graylog/Graylog Collector.app"
 USR_BIN="/usr/local/bin/graylog-collector"
 DATA_DIR="/Library/Application Support/Graylog/Collector"
 PARENT_DIR="/Library/Application Support/Graylog"
@@ -72,9 +72,6 @@ fi
 if [ "$PURGE" = "true" ]; then
   echo "Purging configuration and data..."
   rm -rf "${DATA_DIR:?}"
-  # Remove the parent "Graylog" dir only if empty - it may be shared with
-  # other Graylog products, so never force it.
-  rmdir "$PARENT_DIR" 2>/dev/null || true
 else
   echo "Keeping configuration and data in: ${DATA_DIR}"
   echo "(Re-run with --purge to remove them, including the enrollment token.)"
@@ -84,6 +81,11 @@ fi
 # keeps the running file alive through its open descriptor until the script
 # exits, so deleting it mid-run is safe.
 rm -rf "${APP_DIR:?}"
+
+# Remove the parent "Graylog" dir only if empty - it still holds config/data
+# on non-purge uninstalls and may be shared with other Graylog products, so
+# never force it.
+rmdir "$PARENT_DIR" 2>/dev/null || true
 
 echo ""
 echo "Graylog Collector uninstalled."

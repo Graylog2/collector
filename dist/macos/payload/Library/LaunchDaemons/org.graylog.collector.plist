@@ -8,7 +8,7 @@
 
     <key>ProgramArguments</key>
     <array>
-      <string>/Applications/Graylog Collector.app/Contents/MacOS/graylog-collector</string>
+      <string>/Library/Application Support/Graylog/Graylog Collector.app/Contents/MacOS/graylog-collector</string>
       <string>supervisor</string>
     </array>
 
