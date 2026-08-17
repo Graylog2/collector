@@ -240,7 +240,7 @@ tasks:
       - cmd: mkdir -p "{{.MACOS_TARGET_PKG_DIR}}/resources"
       - cmd: cp -v "{{.ROOT_DIR}}/LICENSE" "{{.MACOS_TARGET_PKG_DIR}}/resources/LICENSE.txt"
       - cmd: >-
-          "{{.ROOT_DIR}}/dist/macos/make-background.sh"
+          go run "{{.ROOT_DIR}}/dist/macos/make-background.go"
           "{{.ROOT_DIR}}/dist/graylog.png"
           "{{.MACOS_TARGET_PKG_DIR}}/resources/background.png"
       - cmd: >-
