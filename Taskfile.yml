@@ -231,9 +231,8 @@ tasks:
     internal: true
     vars:
       MACOS_UNIVERSAL_BINARY_PATH: '{{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}-darwin-universal'
-      MACOS_TARGET_BIN_DIR: '{{.MACOS_TARGET_PKG_DIR}}/payload/opt/graylog-collector/bin'
+      MACOS_TARGET_APP_DIR: '{{.MACOS_TARGET_PKG_DIR}}/payload/Applications/GraylogCollector.app'
     cmds:
-      - cmd: mkdir -p {{.MACOS_TARGET_BIN_DIR}}
       - cmd: mkdir -p "{{.MACOS_TARGET_PKG_DIR}}/payload"
       - cmd: cp -v -R {{.MACOS_PAYLOAD_PKG_DIR}}/payload/ {{.MACOS_TARGET_PKG_DIR}}/payload
       - cmd: mkdir -p "{{.MACOS_TARGET_PKG_DIR}}/scripts"
@@ -248,20 +247,37 @@ tasks:
           {{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}-darwin-amd64
           {{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}-darwin-arm64
       - cmd: lipo -detailed_info {{.MACOS_UNIVERSAL_BINARY_PATH}}
+      # Assemble the app bundle. The daemon binary lives inside a bundle so
+      # System Settings (Login Items & Extensions) shows the bundle name and
+      # icon instead of the code-signing certificate name.
+      - cmd: mkdir -p "{{.MACOS_TARGET_APP_DIR}}/Contents/MacOS" "{{.MACOS_TARGET_APP_DIR}}/Contents/Resources"
+      - cmd: cp -v {{.MACOS_UNIVERSAL_BINARY_PATH}} "{{.MACOS_TARGET_APP_DIR}}/Contents/MacOS/graylog-collector"
+      - cmd: chmod +x "{{.MACOS_TARGET_APP_DIR}}/Contents/MacOS/graylog-collector"
+      - cmd: >-
+          "{{.ROOT_DIR}}/dist/macos/make-icns.sh"
+          "{{.ROOT_DIR}}/dist/macos/background.png"
+          "{{.MACOS_TARGET_APP_DIR}}/Contents/Resources/AppIcon.icns"
+      - cmd: >-
+          /usr/libexec/PlistBuddy
+          -c "Set :CFBundleShortVersionString {{.COLLECTOR_VERSION}}"
+          -c "Set :CFBundleVersion {{.COLLECTOR_VERSION}}"
+          "{{.MACOS_TARGET_APP_DIR}}/Contents/Info.plist"
+      # ensure the bundled uninstall script is executable on the target;
+      # must happen before codesign seals the bundle
+      - cmd: chmod +x "{{.MACOS_TARGET_APP_DIR}}/Contents/Resources/uninstall.sh"
+      # Sign the whole bundle: this signs the embedded binary and seals
+      # Info.plist and Resources (including the icon and uninstall script)
       - cmd: >-
           codesign --force --options runtime --timestamp
-          --sign "{{.CODESIGN_IDENTITY}}" "{{.MACOS_UNIVERSAL_BINARY_PATH}}"
+          --sign "{{.CODESIGN_IDENTITY}}" "{{.MACOS_TARGET_APP_DIR}}"
         if: '[ -n "$CODESIGN_IDENTITY" ]'
-      - cmd: codesign --verify --strict --verbose=2 "{{.MACOS_UNIVERSAL_BINARY_PATH}}"
+      - cmd: codesign --verify --strict --verbose=2 "{{.MACOS_TARGET_APP_DIR}}"
         if: '[ -n "$CODESIGN_IDENTITY" ]'
-      - cmd: codesign -dvv "{{.MACOS_UNIVERSAL_BINARY_PATH}}"
+      - cmd: codesign -dvv "{{.MACOS_TARGET_APP_DIR}}"
         if: '[ -n "$CODESIGN_IDENTITY" ]'
-      - cmd: cp -v {{.MACOS_UNIVERSAL_BINARY_PATH}} {{.MACOS_TARGET_BIN_DIR}}/graylog-collector
       # ensure scripts are always executable, the installer would otherwise fail
       - cmd: chmod +x {{.MACOS_TARGET_PKG_DIR}}/scripts/preinstall {{.MACOS_TARGET_PKG_DIR}}/scripts/postinstall
-      # ensure bundled payload binaries/scripts are executable on the target
-      - cmd: chmod +x {{.MACOS_TARGET_BIN_DIR}}/graylog-collector
-      - cmd: chmod +x {{.MACOS_TARGET_PKG_DIR}}/payload/opt/graylog-collector/scripts/uninstall.sh
+      # ensure the payload PATH wrapper is executable on the target
       - cmd: chmod +x {{.MACOS_TARGET_PKG_DIR}}/payload/usr/local/bin/graylog-collector
 
   version:set:release:

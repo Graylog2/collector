@@ -17,7 +17,7 @@ set -euo pipefail
 LABEL="org.graylog.collector"
 PKG_ID="org.graylog.collector"          # pkgbuild --identifier
 PLIST="/Library/LaunchDaemons/${LABEL}.plist"
-INSTALL_DIR="/opt/graylog-collector"
+APP_DIR="/Applications/GraylogCollector.app"
 USR_BIN="/usr/local/bin/graylog-collector"
 DATA_DIR="/Library/Application Support/Graylog/Collector"
 PARENT_DIR="/Library/Application Support/Graylog"
@@ -80,10 +80,10 @@ else
   echo "(Re-run with --purge to remove them, including the enrollment token.)"
 fi
 
-# Remove the install dir LAST: it contains this very script. On Unix the kernel
+# Remove the app bundle LAST: it contains this very script. On Unix the kernel
 # keeps the running file alive through its open descriptor until the script
 # exits, so deleting it mid-run is safe.
-rm -rf "${INSTALL_DIR:?}"
+rm -rf "${APP_DIR:?}"
 
 echo ""
 echo "Graylog Collector uninstalled."

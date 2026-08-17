@@ -14,6 +14,11 @@ chmod 755 "/Library/Application Support/Graylog/Collector"
 mkdir -p "/var/log/org.graylog.collector"
 chmod 755 "/var/log/org.graylog.collector"
 
+# Register the app bundle with LaunchServices. Never fail the install
+# over it - the item would just fall back to the signer name.
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
+"$LSREGISTER" -f "/Applications/GraylogCollector.app" || true
+
 launchctl bootout system "$PLIST" 2>/dev/null || true
 launchctl bootstrap system "$PLIST"
 launchctl enable "system/$LABEL"

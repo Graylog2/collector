@@ -8,8 +8,13 @@
 
     <key>ProgramArguments</key>
     <array>
-      <string>/opt/graylog-collector/bin/graylog-collector</string>
+      <string>/Applications/GraylogCollector.app/Contents/MacOS/graylog-collector</string>
       <string>supervisor</string>
+    </array>
+
+    <key>AssociatedBundleIdentifiers</key>
+    <array>
+      <string>org.graylog.collector</string>
     </array>
 
     <key>RunAtLoad</key>
