@@ -29,4 +29,5 @@ func TestDefaultConfigPaths(t *testing.T) {
 	paths := DefaultConfigPaths()
 
 	require.Contains(t, paths, "/Library/Application Support/Graylog/Collector/supervisor.yaml")
+	require.Contains(t, paths, "./supervisor.yaml")
 }
