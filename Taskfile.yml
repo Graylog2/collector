@@ -233,6 +233,7 @@ tasks:
           -output {{.MACOS_UNIVERSAL_BINARY_PATH}}
           {{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}-darwin-amd64
           {{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}-darwin-arm64
+      - cmd: lipo -detailed_info {{.MACOS_UNIVERSAL_BINARY_PATH}}
       - cmd: >-
           codesign --force --options runtime --timestamp
           --sign "{{.CODESIGN_IDENTITY}}" "{{.MACOS_UNIVERSAL_BINARY_PATH}}"
@@ -241,7 +242,6 @@ tasks:
         if: '[ -n "$CODESIGN_IDENTITY" ]'
       - cmd: codesign -dvv "{{.MACOS_UNIVERSAL_BINARY_PATH}}"
         if: '[ -n "$CODESIGN_IDENTITY" ]'
-      - cmd: lipo -detailed_info {{.MACOS_UNIVERSAL_BINARY_PATH}}
       - cmd: cp -v {{.MACOS_UNIVERSAL_BINARY_PATH}} {{.MACOS_TARGET_BIN_DIR}}/graylog-collector
       # ensure scripts are always executable, the installer would otherwise fail
       - cmd: chmod +x {{.MACOS_TARGET_PKG_DIR}}/scripts/preinstall {{.MACOS_TARGET_PKG_DIR}}/scripts/postinstall
