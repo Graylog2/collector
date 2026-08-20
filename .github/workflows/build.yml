@@ -93,11 +93,11 @@ jobs:
 
       - name: "Build Windows packages"
         if: "matrix.os == 'windows'"
-        run: "go tool task package:windows:msi" # TODO: Add code signing!
+        run: "go tool task package:windows:msi"
 
       - name: "Build macOS packages"
         if: "matrix.os == 'macos'"
-        run: "go tool task package:macos:pkg" # TODO: Add code signing!
+        run: "go tool task package:macos:pkg"
 
       - name: "Upload build artifacts to S3"
         # Dependabot doesn't have access to the S3 secrets.
