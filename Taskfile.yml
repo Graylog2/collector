@@ -250,6 +250,59 @@ tasks:
         cmd: codesign -dvv "{{.BIN_PATH_PREFIX}}-{{.ARCH}}"
         if: '[ -n "$CODESIGN_IDENTITY" ]'
 
+  package:macos:pkg:notarize:
+    desc: "Notarize macOS installer (macOS only)"
+    deps: [package:macos:pkg]
+    platforms: [darwin]
+    if: '[ -n "$NOTARYTOOL_PROFILE_NAME" ] && [ -n "$KEYCHAIN_PATH" ]'
+    vars:
+      PKG_FILE: "{{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}-darwin-universal.pkg"
+    cmds:
+      # The --wait flag polls until Apple finishes. Typically takes 1-5 minutes.
+      # Capture the submission ID so we can pull the failure log if rejected.
+      - cmd: >-
+          xcrun notarytool submit "{{.PKG_FILE}}"
+          --keychain-profile "$NOTARYTOOL_PROFILE_NAME"
+          --keychain "$KEYCHAIN_PATH"
+          --wait
+          --timeout 30m
+          --output-format json
+          | tee "{{.MACOS_TARGET_PKG_DIR}}/notarytool-submit-output.json"
+          | jq -r '.id'
+          | tee "{{.MACOS_TARGET_PKG_DIR}}/notarytool-submit-id"
+
+      # Check an capture the submission status.
+      - cmd: >-
+          xcrun notarytool info "$(< "{{.MACOS_TARGET_PKG_DIR}}/notarytool-submit-id")"
+          --keychain-profile "$NOTARYTOOL_PROFILE_NAME"
+          --keychain "$KEYCHAIN_PATH"
+          --output-format json
+          | tee "{{.MACOS_TARGET_PKG_DIR}}/notarytool-info-output.json"
+          | jq -r '.status'
+          | tee "{{.MACOS_TARGET_PKG_DIR}}/notarytool-info-status"
+
+      # Check the status
+      - cmd: >-
+          SUBMIT_ID="$(< "{{.MACOS_TARGET_PKG_DIR}}/notarytool-submit-id")"
+          STATUS="$(< "{{.MACOS_TARGET_PKG_DIR}}/notarytool-info-status")"
+
+          if [ "$STATUS" != "Accepted" ]; then
+            echo "Notarization failed with status: $STATUS" >&2
+            # The log names the exact file and rule that was rejected
+            # (unsigned binary, missing hardened runtime, missing timestamp, ...).
+            xcrun notarytool log "$SUBMISSION_ID" \
+              --keychain-profile "$NOTARYTOOL_PROFILE_NAME" \
+              --keychain "$KEYCHAIN_PATH"
+            exit 1
+          fi
+
+      # Attach the notarization ticket so Gatekeeper accepts the pkg offline.
+      - cmd: xcrun stapler staple "{{.PKG_FILE}}"
+
+      # End-to-end Gatekeeper verification of the final artifact.
+      - cmd: spctl -a -vv -t install "{{.PKG_FILE}}"
+      - cmd: pkgutil --check-signature "{{.PKG_FILE}}"
+
   package:macos:pkg:prepare:
     desc: "Prepare input directory for pkgbuild"
     deps: [package:macos:bin:sign]
