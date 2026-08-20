@@ -21,7 +21,8 @@ APP_DIR="/Library/Application Support/Graylog/Graylog Collector.app"
 USR_BIN="/usr/local/bin/graylog-collector"
 DATA_DIR="/Library/Application Support/Graylog/Collector"
 PARENT_DIR="/Library/Application Support/Graylog"
-LOG_DIR="/var/log/org.graylog.collector"
+LOG_DIR="/Library/Logs/Graylog/Collector"
+LOG_PARENT_DIR="/Library/Logs/Graylog"
 
 PURGE="false"
 
@@ -82,10 +83,11 @@ fi
 # exits, so deleting it mid-run is safe.
 rm -rf "${APP_DIR:?}"
 
-# Remove the parent "Graylog" dir only if empty - it still holds config/data
-# on non-purge uninstalls and may be shared with other Graylog products, so
-# never force it.
+# Remove the parent "Graylog" dirs only if empty - the Application Support
+# one still holds config/data on non-purge uninstalls, and both may be shared
+# with other Graylog products, so never force them.
 rmdir "$PARENT_DIR" 2>/dev/null || true
+rmdir "$LOG_PARENT_DIR" 2>/dev/null || true
 
 echo ""
 echo "Graylog Collector uninstalled."

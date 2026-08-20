@@ -27,10 +27,12 @@
     <key>ExitTimeOut</key>
     <integer>60</integer>
 
+    <!-- Logs live under /Library/Logs, NOT /var/log: macOS OS upgrades
+         delete /var/log contents. -->
     <key>StandardOutPath</key>
-    <string>/var/log/org.graylog.collector/graylog-collector.log</string>
+    <string>/Library/Logs/Graylog/Collector/graylog-collector.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/var/log/org.graylog.collector/graylog-collector.log</string>
+    <string>/Library/Logs/Graylog/Collector/graylog-collector.log</string>
   </dict>
 </plist>

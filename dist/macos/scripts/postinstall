@@ -3,25 +3,39 @@ set -euo pipefail
 
 PLIST="/Library/LaunchDaemons/org.graylog.collector.plist"
 LABEL="org.graylog.collector"
+LOG_DIR="/Library/Logs/Graylog/Collector"
+
+# Log this script's output so failed installs can be debugged on the target
+# machine. (The installer itself only keeps script output in the noisy
+# /var/log/install.log.)
+mkdir -p "$LOG_DIR"
+exec > "$LOG_DIR/postinstall.log" 2>&1
+
+echo "# Postinstall started: $(date)"
 
 chown root:wheel "$PLIST"
 chmod 644 "$PLIST"
 
+echo "# Preparing directories"
 mkdir -p "/Library/Application Support/Graylog/Collector"
 chmod 755 "/Library/Application Support/Graylog"
 chmod 755 "/Library/Application Support/Graylog/Collector"
 
-mkdir -p "/var/log/org.graylog.collector"
-chmod 755 "/var/log/org.graylog.collector"
+# Logs live under /Library/Logs, NOT /var/log: macOS OS upgrades delete
+# /var/log contents.
+chmod 755 "/Library/Logs/Graylog" "$LOG_DIR"
 
 # Register the app bundle with LaunchServices. Never fail the install
 # over it - the item would just fall back to the signer name.
+echo "# Registering app bundle with LaunchServices"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister"
 "$LSREGISTER" -f "/Library/Application Support/Graylog/Graylog Collector.app" || true
 
+echo "# Starting service ${LABEL}"
 launchctl bootout system "$PLIST" 2>/dev/null || true
 launchctl bootstrap system "$PLIST"
 launchctl enable "system/$LABEL"
 launchctl kickstart -k "system/$LABEL"
 
+echo "# Postinstall finished: $(date)"
 exit 0
