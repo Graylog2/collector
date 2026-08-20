@@ -1,0 +1,4 @@
+type = "a"
+message = "Add installer package for macOS."
+
+pulls = ["72"]

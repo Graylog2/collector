@@ -112,7 +112,7 @@ func NewManager(cfg config.TelemetryLogsConfig) *Manager {
 	}
 }
 
-// Core returns the zapcore.Core to use in zap.NewTee alongside the stderr core.
+// Core returns the zapcore.Core.
 func (m *Manager) Core() zapcore.Core {
 	return m.sc
 }

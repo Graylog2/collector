@@ -36,6 +36,8 @@ vars:
     - receiver/windowseventlogreceiver
     #- extension/sidecar
     - internal/tools
+  MACOS_PAYLOAD_PKG_DIR: '{{.ROOT_DIR}}/dist/macos'
+  MACOS_TARGET_PKG_DIR: '{{.ROOT_DIR}}/target/macos'
 
 includes:
   'receiver:winlog':
@@ -184,6 +186,176 @@ tasks:
     desc: 'Sign Windows MSI'
     cmds:
       - codesigntool sign dist/pkg/graylog-collector-{{.COLLECTOR_VERSION}}.msi
+
+  package:macos:pkg:
+    # dep of package:macos:pkg:notarize - don't rebuild when both are invoked
+    run: once
+    desc: "Build macOS pkg installer (macOS only)"
+    vars:
+      VERSION: '{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}'
+    deps: [package:macos:pkg:prepare]
+    platforms: [darwin]
+    cmds:
+      - cmd: "mkdir -p {{.MACOS_TARGET_PKG_DIR}}/components"
+      - cmd: >-
+          pkgbuild
+          --root "{{.MACOS_TARGET_PKG_DIR}}/payload"
+          --scripts "{{.MACOS_TARGET_PKG_DIR}}/scripts"
+          --identifier "org.graylog.collector"
+          --version "{{.VERSION}}"
+          --install-location "/"
+          "{{.MACOS_TARGET_PKG_DIR}}/components/graylog-collector-component.pkg"
+      - cmd: >-
+          productbuild
+          --distribution "{{.ROOT_DIR}}/dist/macos/distribution.xml"
+          --package-path "{{.MACOS_TARGET_PKG_DIR}}/components"
+          --resources "{{.MACOS_TARGET_PKG_DIR}}/resources"
+          "{{.ROOT_DIR}}/target/graylog-collector-{{.VERSION}}-darwin-universal.pkg"
+      - cmd: >-
+          productsign --sign "{{.PRODUCTSIGN_IDENTITY}}"
+          "{{.ROOT_DIR}}/target/graylog-collector-{{.VERSION}}-darwin-universal.pkg"
+          "{{.ROOT_DIR}}/target/graylog-collector-{{.VERSION}}-darwin-universal-signed.pkg"
+        if: '[ -n "$PRODUCTSIGN_IDENTITY" ]'
+      - cmd: >-
+          pkgutil --check-signature
+          "{{.ROOT_DIR}}/target/graylog-collector-{{.VERSION}}-darwin-universal-signed.pkg"
+        if: '[ -n "$PRODUCTSIGN_IDENTITY" ]'
+      - cmd: >-
+          mv
+          "{{.ROOT_DIR}}/target/graylog-collector-{{.VERSION}}-darwin-universal-signed.pkg"
+          "{{.ROOT_DIR}}/target/graylog-collector-{{.VERSION}}-darwin-universal.pkg"
+        if: '[ -n "$PRODUCTSIGN_IDENTITY" ]'
+
+  package:macos:bin:sign:
+    desc: "Sign macOS binaries (macOS only)"
+    deps: [builder:build:darwin]
+    platforms: [darwin]
+    vars:
+      BIN_PATH_PREFIX: '{{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}-darwin'
+      ARCHS: [amd64, arm64, universal]
+    cmds:
+      - for:
+          var: ARCHS
+          as: ARCH
+        cmd: >-
+          codesign --force --options runtime --timestamp
+          --sign "{{.CODESIGN_IDENTITY}}" "{{.BIN_PATH_PREFIX}}-{{.ARCH}}"
+        if: '[ -n "$CODESIGN_IDENTITY" ]'
+      - for:
+          var: ARCHS
+          as: ARCH
+        cmd: codesign --verify --strict --verbose=2 "{{.BIN_PATH_PREFIX}}-{{.ARCH}}"
+        if: '[ -n "$CODESIGN_IDENTITY" ]'
+      - for:
+          var: ARCHS
+          as: ARCH
+        cmd: codesign -dvv "{{.BIN_PATH_PREFIX}}-{{.ARCH}}"
+        if: '[ -n "$CODESIGN_IDENTITY" ]'
+
+  package:macos:pkg:notarize:
+    desc: "Notarize macOS installer (macOS only)"
+    deps: [package:macos:pkg]
+    platforms: [darwin]
+    if: '[ -n "$NOTARYTOOL_PROFILE_NAME" ] && [ -n "$KEYCHAIN_PATH" ]'
+    vars:
+      PKG_FILE: "{{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}-darwin-universal.pkg"
+    cmds:
+      # The --wait flag polls until Apple finishes. Typically takes 1-5 minutes.
+      # Capture the submission ID so we can pull the failure log if rejected.
+      - cmd: >-
+          xcrun notarytool submit "{{.PKG_FILE}}"
+          --keychain-profile "$NOTARYTOOL_PROFILE_NAME"
+          --keychain "$KEYCHAIN_PATH"
+          --wait
+          --timeout 30m
+          --output-format json
+          | tee "{{.MACOS_TARGET_PKG_DIR}}/notarytool-submit-output.json"
+          | jq -r '.id'
+          | tee "{{.MACOS_TARGET_PKG_DIR}}/notarytool-submit-id"
+
+      # Check an capture the submission status.
+      - cmd: >-
+          xcrun notarytool info "$(< "{{.MACOS_TARGET_PKG_DIR}}/notarytool-submit-id")"
+          --keychain-profile "$NOTARYTOOL_PROFILE_NAME"
+          --keychain "$KEYCHAIN_PATH"
+          --output-format json
+          | tee "{{.MACOS_TARGET_PKG_DIR}}/notarytool-info-output.json"
+          | jq -r '.status'
+          | tee "{{.MACOS_TARGET_PKG_DIR}}/notarytool-info-status"
+
+      # Check the status
+      - cmd: |
+          SUBMIT_ID="$(< "{{.MACOS_TARGET_PKG_DIR}}/notarytool-submit-id")"
+          STATUS="$(< "{{.MACOS_TARGET_PKG_DIR}}/notarytool-info-status")"
+
+          if [ "$STATUS" != "Accepted" ]; then
+            echo "Notarization failed with status: $STATUS" >&2
+            # The log names the exact file and rule that was rejected
+            # (unsigned binary, missing hardened runtime, missing timestamp, ...).
+            xcrun notarytool log "$SUBMIT_ID" \
+              --keychain-profile "$NOTARYTOOL_PROFILE_NAME" \
+              --keychain "$KEYCHAIN_PATH"
+            exit 1
+          fi
+
+      # Attach the notarization ticket so Gatekeeper accepts the pkg offline.
+      - cmd: xcrun stapler staple "{{.PKG_FILE}}"
+
+      # End-to-end Gatekeeper verification of the final artifact.
+      - cmd: spctl -a -vv -t install "{{.PKG_FILE}}"
+      - cmd: pkgutil --check-signature "{{.PKG_FILE}}"
+
+  package:macos:pkg:prepare:
+    desc: "Prepare input directory for pkgbuild"
+    deps: [package:macos:bin:sign]
+    platforms: [darwin]
+    internal: true
+    vars:
+      MACOS_UNIVERSAL_BINARY_PATH: '{{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}-darwin-universal'
+      MACOS_TARGET_APP_DIR: '{{.MACOS_TARGET_PKG_DIR}}/payload/Library/Application Support/Graylog/Graylog Collector.app'
+    cmds:
+      - cmd: mkdir -p "{{.MACOS_TARGET_PKG_DIR}}/payload"
+      - cmd: cp -v -R {{.MACOS_PAYLOAD_PKG_DIR}}/payload/ {{.MACOS_TARGET_PKG_DIR}}/payload
+      - cmd: mkdir -p "{{.MACOS_TARGET_PKG_DIR}}/scripts"
+      - cmd: cp -v -R {{.MACOS_PAYLOAD_PKG_DIR}}/scripts/ {{.MACOS_TARGET_PKG_DIR}}/scripts
+      - cmd: mkdir -p "{{.MACOS_TARGET_PKG_DIR}}/resources"
+      - cmd: cp -v "{{.ROOT_DIR}}/LICENSE" "{{.MACOS_TARGET_PKG_DIR}}/resources/LICENSE.txt"
+      - cmd: >-
+          go run "{{.ROOT_DIR}}/dist/macos/make-background.go"
+          "{{.ROOT_DIR}}/dist/graylog.png"
+          "{{.MACOS_TARGET_PKG_DIR}}/resources/background.png"
+      # Assemble the app bundle. The daemon binary lives inside a bundle so
+      # System Settings (Login Items & Extensions) shows the bundle name and
+      # icon instead of the code-signing certificate name.
+      - cmd: mkdir -p "{{.MACOS_TARGET_APP_DIR}}/Contents/MacOS" "{{.MACOS_TARGET_APP_DIR}}/Contents/Resources"
+      - cmd: cp -v {{.MACOS_UNIVERSAL_BINARY_PATH}} "{{.MACOS_TARGET_APP_DIR}}/Contents/MacOS/graylog-collector"
+      - cmd: chmod +x "{{.MACOS_TARGET_APP_DIR}}/Contents/MacOS/graylog-collector"
+      - cmd: >-
+          "{{.ROOT_DIR}}/dist/macos/make-icns.sh"
+          "{{.ROOT_DIR}}/dist/graylog.png"
+          "{{.MACOS_TARGET_APP_DIR}}/Contents/Resources/AppIcon.icns"
+      - cmd: >-
+          /usr/libexec/PlistBuddy
+          -c "Set :CFBundleShortVersionString {{.COLLECTOR_VERSION}}"
+          -c "Set :CFBundleVersion {{.COLLECTOR_VERSION}}"
+          "{{.MACOS_TARGET_APP_DIR}}/Contents/Info.plist"
+      # ensure the bundled uninstall script is executable on the target;
+      # must happen before codesign seals the bundle
+      - cmd: chmod +x "{{.MACOS_TARGET_APP_DIR}}/Contents/Resources/uninstall.sh"
+      # Sign the whole bundle: this signs the embedded binary and seals
+      # Info.plist and Resources (including the icon and uninstall script)
+      - cmd: >-
+          codesign --force --options runtime --timestamp
+          --sign "{{.CODESIGN_IDENTITY}}" "{{.MACOS_TARGET_APP_DIR}}"
+        if: '[ -n "$CODESIGN_IDENTITY" ]'
+      - cmd: codesign --verify --strict --verbose=2 "{{.MACOS_TARGET_APP_DIR}}"
+        if: '[ -n "$CODESIGN_IDENTITY" ]'
+      - cmd: codesign -dvv "{{.MACOS_TARGET_APP_DIR}}"
+        if: '[ -n "$CODESIGN_IDENTITY" ]'
+      # ensure scripts are always executable, the installer would otherwise fail
+      - cmd: chmod +x {{.MACOS_TARGET_PKG_DIR}}/scripts/preinstall {{.MACOS_TARGET_PKG_DIR}}/scripts/postinstall
+      # ensure the payload PATH wrapper is executable on the target
+      - cmd: chmod +x {{.MACOS_TARGET_PKG_DIR}}/payload/usr/local/bin/graylog-collector
 
   version:set:release:
     desc: 'Set version in version.env'

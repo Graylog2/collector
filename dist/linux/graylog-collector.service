@@ -21,6 +21,7 @@ EnvironmentFile=-/etc/graylog/collector/enrollment.env
 ExecStart=/usr/bin/graylog-collector supervisor
 
 # Make sure stderr/stdout is captured in the systemd journal.
+# Regular supervisor logs are written to /var/lib/graylog-collector/logs/supervisor.log.
 StandardOutput=journal
 StandardError=journal
 

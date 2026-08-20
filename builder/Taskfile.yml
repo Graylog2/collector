@@ -25,6 +25,7 @@ tasks:
   generate:
     desc: 'Regenerate the OCB-built collector source code'
     dir: '{{.ROOT_DIR}}'
+    run: once
     cmds:
       - go generate .
 
@@ -70,6 +71,7 @@ tasks:
           BUILD_ARCH: arm64
 
   build:darwin:amd64:
+    run: once
     desc: 'Cross-compile collector for darwin/amd64'
     cmds:
       - task: build:do
@@ -78,12 +80,31 @@ tasks:
           BUILD_ARCH: amd64
 
   build:darwin:arm64:
+    run: once
     desc: 'Cross-compile collector for darwin/arm64'
     cmds:
       - task: build:do
         vars:
           BUILD_OS: darwin
           BUILD_ARCH: arm64
+
+  build:darwin:universal:
+    run: once
+    desc: 'Create universal darwin binary (macOS only)'
+    platforms: [darwin]
+    deps: [build:darwin:amd64, build:darwin:arm64]
+    vars:
+      VERSION: '{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}'
+      TARGET_DIR: '{{.OUT_DIR}}/target'
+      UNIVERSAL_BIN: '{{.TARGET_DIR}}/graylog-collector-{{.VERSION}}-darwin-universal'
+    cmds:
+      - cmd: >-
+          lipo
+          -create
+          -output {{.UNIVERSAL_BIN}}
+          {{.TARGET_DIR}}/graylog-collector-{{.VERSION}}-darwin-amd64
+          {{.TARGET_DIR}}/graylog-collector-{{.VERSION}}-darwin-arm64
+      - cmd: lipo -detailed_info {{.UNIVERSAL_BIN}}
 
   build:windows:amd64:
     desc: 'Cross-compile collector for windows/amd64'
@@ -119,18 +140,30 @@ tasks:
           #      https://pkg.go.dev/net#hdr-Name_Resolution
           CGO_ENABLED: '1'
 
+  build:linux:
+    desc: 'Build collector for all Linux platforms'
+    cmds:
+      - task: build:linux:amd64
+      - task: build:linux:arm64
+
   build:windows:
     desc: 'Build collector for all Windows platforms'
     cmds:
       - task: build:windows:amd64
 
+  build:darwin:
+    run: once
+    desc: 'Build collector for all macOS platforms'
+    cmds:
+      - task: build:darwin:amd64
+      - task: build:darwin:arm64
+      - task: build:darwin:universal
+
   build:unix:
     desc: 'Build collector for all Unix platforms'
     cmds:
-      - task: build:linux:amd64
-      - task: build:linux:arm64
-      - task: build:darwin:amd64
-      - task: build:darwin:arm64
+      - task: build:linux
+      - task: build:darwin
 
   build:all:
     desc: 'Build collector for all supported platforms'

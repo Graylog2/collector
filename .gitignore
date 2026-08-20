@@ -2,6 +2,7 @@
 *.o
 *.a
 *.so
+.DS_Store
 
 # Folders
 _obj
@@ -36,3 +37,6 @@ builder/builder.exe
 /data
 resource_windows.syso
 .claude/
+
+# Temp files for go task
+/.task/

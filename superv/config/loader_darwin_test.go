@@ -15,23 +15,19 @@
 //
 // SPDX-License-Identifier: SSPL-1.0
 
-//go:build unix && !darwin
+//go:build darwin
 
 package config
 
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestConfigDefaultsDirectories(t *testing.T) {
-	cfg := DefaultConfig()
+func TestDefaultConfigPaths(t *testing.T) {
+	paths := DefaultConfigPaths()
 
-	assert.Equal(t, "/var/lib/graylog-collector/supervisor", cfg.Persistence.Dir)
-	assert.Equal(t, "/var/lib/graylog-collector/storage", cfg.Agent.StorageDir)
-	assert.Equal(t, "/var/lib/graylog-collector/keys", cfg.Keys.Dir)
-	assert.Equal(t, "/var/lib/graylog-collector/packages", cfg.Packages.StorageDir)
-	assert.Equal(t, "/var/lib/graylog-collector/logs/supervisor.log", cfg.Logging.File)
-	assert.Equal(t, "/var/lib/graylog-collector/logs/agent.log", cfg.Agent.Logging.File)
+	require.Contains(t, paths, "/Library/Application Support/Graylog/Collector/supervisor.yaml")
+	require.Contains(t, paths, "./supervisor.yaml")
 }
