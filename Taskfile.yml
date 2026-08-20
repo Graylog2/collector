@@ -188,6 +188,8 @@ tasks:
       - codesigntool sign dist/pkg/graylog-collector-{{.COLLECTOR_VERSION}}.msi
 
   package:macos:pkg:
+    # dep of package:macos:pkg:notarize - don't rebuild when both are invoked
+    run: once
     desc: "Build macOS pkg installer (macOS only)"
     vars:
       VERSION: '{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}'

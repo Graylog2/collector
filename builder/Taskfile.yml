@@ -71,6 +71,7 @@ tasks:
           BUILD_ARCH: arm64
 
   build:darwin:amd64:
+    run: once
     desc: 'Cross-compile collector for darwin/amd64'
     cmds:
       - task: build:do
@@ -79,6 +80,7 @@ tasks:
           BUILD_ARCH: amd64
 
   build:darwin:arm64:
+    run: once
     desc: 'Cross-compile collector for darwin/arm64'
     cmds:
       - task: build:do
@@ -87,6 +89,7 @@ tasks:
           BUILD_ARCH: arm64
 
   build:darwin:universal:
+    run: once
     desc: 'Create universal darwin binary (macOS only)'
     platforms: [darwin]
     deps: [build:darwin:amd64, build:darwin:arm64]
@@ -149,6 +152,7 @@ tasks:
       - task: build:windows:amd64
 
   build:darwin:
+    run: once
     desc: 'Build collector for all macOS platforms'
     cmds:
       - task: build:darwin:amd64
