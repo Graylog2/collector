@@ -117,8 +117,8 @@ jobs:
           # are already uploaded by the Linux job.
           case "${{ matrix.os }}" in
             windows) grep_args=(-e '\.exe$' -e '\.msi$') ;;
-            macos)   grep_args=(-e '\.pkg$') ;;
-            *)       grep_args=(-v -e '\.exe$' -e '\.msi$') ;;
+            macos)   grep_args=(-e '-darwin-' -e '\.pkg$') ;;
+            *)       grep_args=(-v -e '\.exe$' -e '\.msi$' -e '\.pkg') ;;
           esac
 
           for file in $(find . -maxdepth 1 -name 'graylog-collector*' -type f | grep "${grep_args[@]}" | sort -V); do

@@ -224,9 +224,35 @@ tasks:
           "{{.ROOT_DIR}}/target/graylog-collector-{{.VERSION}}-darwin-universal.pkg"
         if: '[ -n "$PRODUCTSIGN_IDENTITY" ]'
 
+  package:macos:bin:sign:
+    desc: "Sign macOS binaries (macOS only)"
+    deps: [builder:build:darwin]
+    platforms: [darwin]
+    vars:
+      BIN_PATH_PREFIX: '{{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}-darwin'
+      ARCHS: [amd64, arm64, universal]
+    cmds:
+      - for:
+          var: ARCHS
+          as: ARCH
+        cmd: >-
+          codesign --force --options runtime --timestamp
+          --sign "{{.CODESIGN_IDENTITY}}" "{{.BIN_PATH_PREFIX}}-{{.ARCH}}"
+        if: '[ -n "$CODESIGN_IDENTITY" ]'
+      - for:
+          var: ARCHS
+          as: ARCH
+        cmd: codesign --verify --strict --verbose=2 "{{.BIN_PATH_PREFIX}}-{{.ARCH}}"
+        if: '[ -n "$CODESIGN_IDENTITY" ]'
+      - for:
+          var: ARCHS
+          as: ARCH
+        cmd: codesign -dvv "{{.BIN_PATH_PREFIX}}-{{.ARCH}}"
+        if: '[ -n "$CODESIGN_IDENTITY" ]'
+
   package:macos:pkg:prepare:
     desc: "Prepare input directory for pkgbuild"
-    deps: [builder:build:darwin]
+    deps: [package:macos:bin:sign]
     platforms: [darwin]
     internal: true
     vars:
@@ -243,13 +269,6 @@ tasks:
           go run "{{.ROOT_DIR}}/dist/macos/make-background.go"
           "{{.ROOT_DIR}}/dist/graylog.png"
           "{{.MACOS_TARGET_PKG_DIR}}/resources/background.png"
-      - cmd: >-
-          lipo
-          -create
-          -output {{.MACOS_UNIVERSAL_BINARY_PATH}}
-          {{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}-darwin-amd64
-          {{.ROOT_DIR}}/target/graylog-collector-{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}-darwin-arm64
-      - cmd: lipo -detailed_info {{.MACOS_UNIVERSAL_BINARY_PATH}}
       # Assemble the app bundle. The daemon binary lives inside a bundle so
       # System Settings (Login Items & Extensions) shows the bundle name and
       # icon instead of the code-signing certificate name.

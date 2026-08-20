@@ -85,6 +85,23 @@ tasks:
           BUILD_OS: darwin
           BUILD_ARCH: arm64
 
+  build:darwin:universal:
+    desc: 'Create universal darwin binary (macOS only)'
+    platforms: [darwin]
+    deps: [build:darwin:amd64, build:darwin:arm64]
+    vars:
+      VERSION: '{{.COLLECTOR_VERSION}}{{.COLLECTOR_VERSION_SUFFIX}}'
+      TARGET_DIR: '{{.OUT_DIR}}/target'
+      UNIVERSAL_BIN: '{{.TARGET_DIR}}/graylog-collector-{{.VERSION}}-darwin-universal'
+    cmds:
+      - cmd: >-
+          lipo
+          -create
+          -output {{.UNIVERSAL_BIN}}
+          {{.TARGET_DIR}}/graylog-collector-{{.VERSION}}-darwin-amd64
+          {{.TARGET_DIR}}/graylog-collector-{{.VERSION}}-darwin-arm64
+      - cmd: lipo -detailed_info {{.UNIVERSAL_BIN}}
+
   build:windows:amd64:
     desc: 'Cross-compile collector for windows/amd64'
     dir: '{{.ROOT_DIR}}'
@@ -135,6 +152,7 @@ tasks:
     cmds:
       - task: build:darwin:amd64
       - task: build:darwin:arm64
+      - task: build:darwin:universal
 
   build:unix:
     desc: 'Build collector for all Unix platforms'
