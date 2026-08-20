@@ -25,6 +25,7 @@ tasks:
   generate:
     desc: 'Regenerate the OCB-built collector source code'
     dir: '{{.ROOT_DIR}}'
+    run: once
     cmds:
       - go generate .
 
