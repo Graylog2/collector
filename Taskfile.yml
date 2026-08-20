@@ -282,7 +282,7 @@ tasks:
           | tee "{{.MACOS_TARGET_PKG_DIR}}/notarytool-info-status"
 
       # Check the status
-      - cmd: >-
+      - cmd: |
           SUBMIT_ID="$(< "{{.MACOS_TARGET_PKG_DIR}}/notarytool-submit-id")"
           STATUS="$(< "{{.MACOS_TARGET_PKG_DIR}}/notarytool-info-status")"
 
@@ -290,7 +290,7 @@ tasks:
             echo "Notarization failed with status: $STATUS" >&2
             # The log names the exact file and rule that was rejected
             # (unsigned binary, missing hardened runtime, missing timestamp, ...).
-            xcrun notarytool log "$SUBMISSION_ID" \
+            xcrun notarytool log "$SUBMIT_ID" \
               --keychain-profile "$NOTARYTOOL_PROFILE_NAME" \
               --keychain "$KEYCHAIN_PATH"
             exit 1
