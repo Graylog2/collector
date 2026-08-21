@@ -80,6 +80,7 @@ func customizeSettings(params *otelcol.CollectorSettings) {
 
 func customizeCommand(params *otelcol.CollectorSettings, cmd *cobra.Command) {
 	cmd.AddCommand(superv.GetCommand())
+	cmd.AddCommand(superv.GetEnrollCommand())
 	if ownLogsShutdown != nil {
 		// Best-effort flush: PersistentPostRun only fires when RunE succeeds.
 		// Cobra skips all post-run hooks on error (command.go:1009), so on
