@@ -40,33 +40,41 @@ const jsonLoggingFormat = "json"
 
 func GetCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "supervisor",
-		Short: "Start the supervisor",
-		Long:  "Start the Collector supervisor process",
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			// Explicitly check for supported platforms to avoid custom supervisor builds on unsupported platforms
-			// to connect to the OpAMP server.
-			switch runtime.GOOS {
-			case "darwin", "linux", "windows":
-				return nil
-			default:
-				return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
-			}
-		},
-		RunE: runSupervisor,
+		Use:     "supervisor",
+		Short:   "Start the supervisor",
+		Long:    "Start the Collector supervisor process",
+		PreRunE: checkSupportedPlatform,
+		RunE:    runSupervisor,
 	}
 
-	cmd.Flags().StringP("config", "c", "", "Path to a supervisor configuration file")
-	cmd.Flags().String("endpoint", "", "OpAMP server endpoint")
+	addConfigFlags(cmd)
+	cmd.Flags().String("server-endpoint", "", "OpAMP server endpoint")
 	cmd.Flags().String("enroll-endpoint", "", "Enrollment endpoint")
 	cmd.Flags().String("enroll-token", "", "Enrollment token")
+
+	return cmd
+}
+
+// checkSupportedPlatform explicitly checks for supported platforms to avoid
+// custom supervisor builds on unsupported platforms to connect to the OpAMP server.
+func checkSupportedPlatform(_ *cobra.Command, _ []string) error {
+	switch runtime.GOOS {
+	case "darwin", "linux", "windows":
+		return nil
+	default:
+		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+	}
+}
+
+// addConfigFlags registers the configuration flags shared by all commands
+// that load the supervisor configuration via buildConfig.
+func addConfigFlags(cmd *cobra.Command) {
+	cmd.Flags().StringP("config", "c", "", "Path to a supervisor configuration file")
 	cmd.Flags().String("data-dir", "", "Data directory")
 	cmd.Flags().Bool("insecure", false, "Start in insecure mode (no TLS verification, etc.)")
 	cmd.Flags().Bool("debug", false, "Enable debug logging")
 	cmd.Flags().Bool("dev", false, "Enable development profile")
 	_ = cmd.Flags().MarkHidden("dev") // Developer-only setting
-
-	return cmd
 }
 
 func findConfigFile(paths []string) (string, error) {
@@ -82,11 +90,11 @@ func findConfigFile(paths []string) (string, error) {
 	return "", nil
 }
 
-func buildConfig(cmd *cobra.Command) (config.Config, []func(logger *zap.Logger), error) {
+func buildConfig(cmd *cobra.Command, enrollEndpointFlag string, enrollTokenFlag string) (config.Config, []func(logger *zap.Logger), error) {
 	var events []func(logger *zap.Logger)
 
 	var configFile string
-	if cmd.Flag("config").Changed {
+	if cmd.Flags().Changed("config") {
 		configFile, _ = cmd.Flags().GetString("config")
 
 		events = append(events, func(logger *zap.Logger) {
@@ -121,31 +129,31 @@ func buildConfig(cmd *cobra.Command) (config.Config, []func(logger *zap.Logger),
 		return config.Config{}, nil, fmt.Errorf("loading config: %w", err)
 	}
 
-	if cmd.Flag("endpoint").Changed {
-		endpoint, _ := cmd.Flags().GetString("endpoint")
+	if cmd.Flags().Changed("server-endpoint") {
+		endpoint, _ := cmd.Flags().GetString("server-endpoint")
 		cfg.Server.Endpoint = endpoint
 
 		events = append(events, func(logger *zap.Logger) {
 			logger.Debug("Using server endpoint from command line flag", zap.String("endpoint", endpoint))
 		})
 	}
-	if cmd.Flag("enroll-endpoint").Changed {
-		enrollEndpoint, _ := cmd.Flags().GetString("enroll-endpoint")
+	if cmd.Flags().Changed(enrollEndpointFlag) {
+		enrollEndpoint, _ := cmd.Flags().GetString(enrollEndpointFlag)
 		cfg.Server.Auth.EnrollmentEndpoint = enrollEndpoint
 
 		events = append(events, func(logger *zap.Logger) {
 			logger.Debug("Using enrollment endpoint from command line flag", zap.String("endpoint", enrollEndpoint))
 		})
 	}
-	if cmd.Flag("enroll-token").Changed {
-		enrollToken, _ := cmd.Flags().GetString("enroll-token")
+	if cmd.Flags().Changed(enrollTokenFlag) {
+		enrollToken, _ := cmd.Flags().GetString(enrollTokenFlag)
 		cfg.Server.Auth.EnrollmentToken = enrollToken
 
 		events = append(events, func(logger *zap.Logger) {
 			logger.Debug("Using enrollment token from command line flag")
 		})
 	}
-	if cmd.Flag("data-dir").Changed {
+	if cmd.Flags().Changed("data-dir") {
 		dataDir, _ := cmd.Flags().GetString("data-dir")
 		cfg.Persistence.Dir = dataDir
 		events = append(events, func(logger *zap.Logger) {
@@ -275,7 +283,7 @@ func initLogger(loggingCfg config.LoggingConfig, debug bool) (*zap.Logger, error
 }
 
 func runSupervisor(cmd *cobra.Command, _ []string) error {
-	cfg, events, err := buildConfig(cmd)
+	cfg, events, err := buildConfig(cmd, "enroll-endpoint", "enroll-token")
 	if err != nil {
 		return fmt.Errorf("couldn't load config: %w", err)
 	}

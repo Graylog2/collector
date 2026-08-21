@@ -129,15 +129,7 @@ func New(logger *zap.Logger, cfg config.Config, instanceUID string) (*Supervisor
 	}
 
 	if !exist {
-		connSettings = connection.Settings{
-			HeartbeatInterval: 30 * time.Second,
-			TLS: connection.TLSSettings{
-				Insecure:   cfg.IsInsecure(),
-				MinVersion: "TLSv1.3",
-				MaxVersion: "TLSv1.3",
-			},
-			UpdatedAt: time.Now().UTC(),
-		}
+		connSettings = defaultConnectionSettings(cfg)
 
 		if authMgr.IsEnrolled() {
 			// We should have stored connection settings when enrolled, but in case we don't,
@@ -145,13 +137,11 @@ func New(logger *zap.Logger, cfg config.Config, instanceUID string) (*Supervisor
 			connSettings.Endpoint = cfg.Server.Endpoint
 			connSettings.Headers = cfg.Server.Headers
 		} else {
-			if enrollEndpoint := cfg.Server.Auth.EnrollmentEndpoint; enrollEndpoint != "" {
-				endpoint, err := config.DeriveEnrollmentEndpoint(enrollEndpoint)
+			if cfg.Server.Auth.EnrollmentEndpoint != "" {
+				connSettings, err = DefaultEnrollmentSettings(cfg)
 				if err != nil {
-					return nil, fmt.Errorf("failed to derive enrollment endpoint: %w", err)
+					return nil, err
 				}
-				connSettings.Endpoint = endpoint
-				connSettings.Headers = cfg.Server.Auth.EnrollmentHeaders
 			} else if serverEndpoint := cfg.Server.Endpoint; serverEndpoint != "" {
 				connSettings.Endpoint = serverEndpoint
 				connSettings.Headers = cfg.Server.Headers
