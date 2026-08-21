@@ -93,6 +93,42 @@ func TestEnroll_FreshEnrollment(t *testing.T) {
 	require.Equal(t, expectedEndpoint, settings.Endpoint)
 }
 
+func TestEnroll_SettingsPersistFailureIsRecoverable(t *testing.T) {
+	server, err := testserver.New()
+	require.NoError(t, err)
+	server.Start()
+	defer server.Stop()
+
+	token, err := server.CreateEnrollmentJWT("test", time.Hour)
+	require.NoError(t, err)
+
+	cfg := enrollTestConfig(t, server.URL(), token)
+	logger := zaptest.NewLogger(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Force connection settings persistence to fail by planting a directory
+	// where the settings file would be written.
+	blockingDir := filepath.Join(cfg.Persistence.Dir, "connection.yaml")
+	require.NoError(t, os.MkdirAll(blockingDir, 0700))
+
+	require.Error(t, superv.Enroll(ctx, logger, cfg))
+
+	// The machine must not be marked enrolled when the settings could not be
+	// persisted — otherwise a re-run would no-op and never repair the settings.
+	require.False(t, newAuthManager(cfg).IsEnrolled())
+
+	// Once the cause is removed, a re-run must fully enroll.
+	require.NoError(t, os.Remove(blockingDir))
+	require.NoError(t, superv.Enroll(ctx, logger, cfg))
+
+	require.True(t, newAuthManager(cfg).IsEnrolled())
+	_, exists, err := connection.NewSettingsManager(logger, cfg.Persistence.Dir).TryLoadPersisted()
+	require.NoError(t, err)
+	require.True(t, exists)
+}
+
 func TestEnroll_AlreadyEnrolledIsNoOp(t *testing.T) {
 	server, err := testserver.New()
 	require.NoError(t, err)

@@ -118,15 +118,19 @@ func Enroll(ctx context.Context, logger *zap.Logger, cfg config.Config) error {
 				return nil
 			}
 
-			if err := authMgr.CompleteEnrollment(certPEM); err != nil {
-				err = fmt.Errorf("failed to complete enrollment: %w", err)
+			// Persist the connection settings before completing enrollment:
+			// CompleteEnrollment is what makes IsEnrolled() true, and a later
+			// run no-ops when already enrolled. Persisting first keeps every
+			// partial-failure state repairable by simply re-running enroll.
+			newSettings, _ := settingsMgr.SettingsChanged(settings)
+			if err := settingsMgr.Persist(newSettings); err != nil {
+				err = fmt.Errorf("failed to persist connection settings: %w", err)
 				reportDone(err)
 				return err
 			}
 
-			newSettings, _ := settingsMgr.SettingsChanged(settings)
-			if err := settingsMgr.Persist(newSettings); err != nil {
-				err = fmt.Errorf("failed to persist connection settings: %w", err)
+			if err := authMgr.CompleteEnrollment(certPEM); err != nil {
+				err = fmt.Errorf("failed to complete enrollment: %w", err)
 				reportDone(err)
 				return err
 			}
