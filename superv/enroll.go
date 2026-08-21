@@ -85,7 +85,7 @@ func Enroll(ctx context.Context, logger *zap.Logger, cfg config.Config) error {
 
 	// Retained so the final timeout error can name the underlying cause;
 	// opamp-go's HTTP client otherwise only logs connection failures.
-	var lastConnErr atomic.Value
+	var lastConnErr atomic.Pointer[error]
 
 	// Buffered so the single expected completion never blocks the OpAMP callback.
 	done := make(chan error, 1)
@@ -103,7 +103,7 @@ func Enroll(ctx context.Context, logger *zap.Logger, cfg config.Config) error {
 		OnConnectFailed: func(_ context.Context, err error) {
 			logger.Warn("Failed to connect to OpAMP server, retrying", zap.Error(err))
 			if err != nil {
-				lastConnErr.Store(err)
+				lastConnErr.Store(&err)
 			}
 		},
 		OnError: func(_ context.Context, err *protobufs.ServerErrorResponse) {
@@ -215,8 +215,8 @@ func Enroll(ctx context.Context, logger *zap.Logger, cfg config.Config) error {
 				return err
 			}
 		default:
-			if connErr, ok := lastConnErr.Load().(error); ok {
-				return fmt.Errorf("gave up waiting for enrollment certificate: %w (last connection error: %v)", ctx.Err(), connErr)
+			if connErr := lastConnErr.Load(); connErr != nil {
+				return fmt.Errorf("gave up waiting for enrollment certificate: %w (last connection error: %v)", ctx.Err(), *connErr)
 			}
 			return fmt.Errorf("gave up waiting for enrollment certificate: %w", ctx.Err())
 		}
