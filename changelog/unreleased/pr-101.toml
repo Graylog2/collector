@@ -1,0 +1,5 @@
+type = "fixed"
+message = "Fix dropped own logs from the collector on error exit."
+
+issues = ["2"]
+pulls = ["101"]
