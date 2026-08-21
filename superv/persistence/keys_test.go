@@ -18,6 +18,7 @@
 package persistence
 
 import (
+	"crypto/ecdh"
 	"crypto/ed25519"
 	"crypto/rand"
 	"os"
@@ -27,7 +28,6 @@ import (
 
 	"github.com/Graylog2/collector/superv/internal/testpki"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/curve25519"
 )
 
 func TestSaveAndLoadSigningKey(t *testing.T) {
@@ -77,11 +77,10 @@ func TestSaveAndLoadEncryptionKey(t *testing.T) {
 	keysDir := filepath.Join(dir, "keys")
 
 	// Generate X25519 keypair
-	priv := make([]byte, curve25519.ScalarSize)
-	_, err := rand.Read(priv)
+	priv, err := ecdh.X25519().GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
-	err = SaveEncryptionKey(keysDir, priv)
+	err = SaveEncryptionKey(keysDir, priv.Bytes())
 	require.NoError(t, err)
 
 	loaded, err := LoadEncryptionKey(keysDir)
@@ -125,26 +124,32 @@ func TestKeysExist(t *testing.T) {
 	dir := t.TempDir()
 	keysDir := filepath.Join(dir, "keys")
 
+	exists := func(t *testing.T, cb func(path string) (bool, error), path string) bool {
+		value, err := cb(path)
+		require.NoError(t, err)
+		return value
+	}
+
 	// Initially no keys exist
-	require.False(t, SigningKeyExists(keysDir))
-	require.False(t, EncryptionKeyExists(keysDir))
-	require.False(t, CertificateExists(keysDir))
+	require.False(t, exists(t, SigningKeyExists, keysDir))
+	require.False(t, exists(t, EncryptionKeyExists, keysDir))
+	require.False(t, exists(t, CertificateExists, keysDir))
 
 	// Create signing key
 	_, priv, _ := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, SaveSigningKey(keysDir, priv))
-	require.True(t, SigningKeyExists(keysDir))
+	require.True(t, exists(t, SigningKeyExists, keysDir))
 
 	// Create encryption key
-	encPriv := make([]byte, curve25519.ScalarSize)
-	_, _ = rand.Read(encPriv)
-	require.NoError(t, SaveEncryptionKey(keysDir, encPriv))
-	require.True(t, EncryptionKeyExists(keysDir))
+	encPriv, err := ecdh.X25519().GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	require.NoError(t, SaveEncryptionKey(keysDir, encPriv.Bytes()))
+	require.True(t, exists(t, EncryptionKeyExists, keysDir))
 
 	// Create certificate
 	cert := testpki.GenerateTestCert(t)
 	require.NoError(t, SaveCertificate(keysDir, cert.Cert))
-	require.True(t, CertificateExists(keysDir))
+	require.True(t, exists(t, CertificateExists, keysDir))
 }
 
 func TestCertificateFingerprint(t *testing.T) {

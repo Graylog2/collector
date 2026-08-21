@@ -18,6 +18,7 @@
 package persistence
 
 import (
+	"crypto/ecdh"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"crypto/x509"
@@ -96,7 +97,7 @@ func SaveEncryptionKey(keysDir string, key []byte) error {
 }
 
 // LoadEncryptionKey loads an X25519 private key from disk.
-func LoadEncryptionKey(keysDir string) ([]byte, error) {
+func LoadEncryptionKey(keysDir string) (*ecdh.PrivateKey, error) {
 	filePath := filepath.Join(keysDir, encryptionKeyFile)
 
 	content, err := os.ReadFile(filePath) //nolint:gosec // Trusted path
@@ -112,7 +113,12 @@ func LoadEncryptionKey(keysDir string) ([]byte, error) {
 		return nil, fmt.Errorf("unexpected PEM block type: %q", block.Type)
 	}
 
-	return block.Bytes, nil
+	privateKey, err := ecdh.X25519().NewPrivateKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("parsing X25519 private key: %w", err)
+	}
+
+	return privateKey, nil
 }
 
 // SaveCertificate saves an X.509 certificate to disk in PEM format.
@@ -148,24 +154,36 @@ func LoadCertificate(keysDir string) (*x509.Certificate, error) {
 }
 
 // SigningKeyExists returns true if the signing key file exists.
-func SigningKeyExists(keysDir string) bool {
+func SigningKeyExists(keysDir string) (bool, error) {
 	filePath := filepath.Join(keysDir, SigningKeyFile)
-	_, err := os.Stat(filePath)
-	return err == nil
+	if _, err := os.Stat(filePath); errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	} else if err != nil {
+		return false, fmt.Errorf("reading signing key: %w", err)
+	}
+	return true, nil
 }
 
 // EncryptionKeyExists returns true if the encryption key file exists.
-func EncryptionKeyExists(keysDir string) bool {
+func EncryptionKeyExists(keysDir string) (bool, error) {
 	filePath := filepath.Join(keysDir, encryptionKeyFile)
-	_, err := os.Stat(filePath)
-	return err == nil
+	if _, err := os.Stat(filePath); errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	} else if err != nil {
+		return false, fmt.Errorf("reading encryption key: %w", err)
+	}
+	return true, nil
 }
 
 // CertificateExists returns true if the certificate file exists.
-func CertificateExists(keysDir string) bool {
+func CertificateExists(keysDir string) (bool, error) {
 	filePath := filepath.Join(keysDir, SigningCertFile)
-	_, err := os.Stat(filePath)
-	return err == nil
+	if _, err := os.Stat(filePath); errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	} else if err != nil {
+		return false, fmt.Errorf("reading signing key: %w", err)
+	}
+	return true, nil
 }
 
 // CertificateFingerprint returns the SHA-256 fingerprint of the certificate.

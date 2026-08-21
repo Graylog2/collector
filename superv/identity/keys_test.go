@@ -15,14 +15,14 @@
 //
 // SPDX-License-Identifier: SSPL-1.0
 
-package auth
+package identity
 
 import (
 	"crypto/ed25519"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/curve25519"
 )
 
 func TestGenerateSigningKeypair(t *testing.T) {
@@ -38,22 +38,26 @@ func TestGenerateSigningKeypair(t *testing.T) {
 }
 
 func TestGenerateEncryptionKeypair(t *testing.T) {
-	pub, priv, err := GenerateEncryptionKeypair()
+	alicePub, alicePriv, err := GenerateEncryptionKeypair()
 	require.NoError(t, err)
-	require.Len(t, pub, curve25519.PointSize)
-	require.Len(t, priv, curve25519.ScalarSize)
+	require.Len(t, alicePub.Bytes(), 32)
+	require.Len(t, alicePriv.Bytes(), 32)
 
 	// Verify ECDH works
-	otherPub, otherPriv, err := GenerateEncryptionKeypair()
+	bobPub, bobPriv, err := GenerateEncryptionKeypair()
 	require.NoError(t, err)
 
-	shared1, err := curve25519.X25519(priv, otherPub)
+	assert.Equal(t, alicePriv.PublicKey().Bytes(), alicePub.Bytes())
+
+	assert.Equal(t, bobPriv.PublicKey().Bytes(), bobPub.Bytes())
+
+	sharedOne, err := alicePriv.ECDH(bobPub)
 	require.NoError(t, err)
 
-	shared2, err := curve25519.X25519(otherPriv, pub)
+	sharedTwo, err := bobPriv.ECDH(alicePub)
 	require.NoError(t, err)
 
-	require.Equal(t, shared1, shared2)
+	require.Equal(t, sharedOne, sharedTwo)
 }
 
 func TestGenerateSigningKeypair_Unique(t *testing.T) {

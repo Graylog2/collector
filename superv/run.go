@@ -57,7 +57,11 @@ func Run(ctx context.Context, cfg config.Config, events []func(*zap.Logger), sta
 		event(logger)
 	}
 
-	instanceUID, err := persistence.LoadOrCreateInstanceUID(cfg.Persistence.Dir)
+	if err := persistence.InitIdentity(logger, cfg.Persistence.Dir, cfg.Keys.Dir); err != nil {
+		return fmt.Errorf("couldn't ensure identity: %w", err)
+	}
+
+	instanceUID, err := persistence.LoadInstanceUID(cfg.Persistence.Dir)
 	if err != nil {
 		return fmt.Errorf("failed to load instance UID: %w", err)
 	}
