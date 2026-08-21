@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/Graylog2/collector/superv"
 	"github.com/Graylog2/collector/superv/ownlogs"
@@ -31,7 +32,14 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-var ownLogsShutdown func(context.Context)
+var (
+	// ownLogsCore is the active own-logs OTLP zap core, set when own-logs
+	// export is configured. Used by the RunE wrapper in customizeCommand to
+	// export the collector's fatal error (e.g. config validation failures),
+	// which otherwise never passes through the zap logger.
+	ownLogsCore     zapcore.Core
+	ownLogsShutdown func(context.Context)
+)
 
 func customizeSettings(params *otelcol.CollectorSettings) {
 	// Disable caller information in logs to reduce log chatter and avoid exposing source code file names.
@@ -62,6 +70,7 @@ func customizeSettings(params *otelcol.CollectorSettings) {
 	}
 
 	ownLogsShutdown = shutdown
+	ownLogsCore = core
 	// The OTel Collector's service layer attaches its own telemetry resource
 	// (service.name, service.instance.id, etc.) as a zap field named "resource"
 	// on component loggers. The otelzap bridge converts that field into an OTLP
@@ -80,18 +89,22 @@ func customizeSettings(params *otelcol.CollectorSettings) {
 
 func customizeCommand(params *otelcol.CollectorSettings, cmd *cobra.Command) {
 	cmd.AddCommand(superv.GetCommand())
+
+	// Wrapping RunE here to ensure we can also intercept error returns.
+	// This can happen because by design the otel-collector is crashing on bad config early and in that case
+	// we have no chance to send out these messages to the configured OTLP endpoint before the process exits
 	if ownLogsShutdown != nil {
-		// Best-effort flush: PersistentPostRun only fires when RunE succeeds.
-		// Cobra skips all post-run hooks on error (command.go:1009), so on
-		// error exits the batch processor's periodic export (~1s) is the only
-		// flush mechanism. This is accepted — see the "Shutdown — Best-Effort
-		// Flush" section in the design spec.
-		existing := cmd.PersistentPostRun
-		cmd.PersistentPostRun = func(cmd *cobra.Command, args []string) {
-			if existing != nil {
-				existing(cmd, args)
+		origRunE := cmd.RunE
+		cmd.RunE = func(cmd *cobra.Command, args []string) error {
+			err := origRunE(cmd, args)
+			if err != nil && ownLogsCore != nil {
+				logger := zap.New(ownLogsCore)
+				logger.Error(err.Error())
 			}
-			ownLogsShutdown(cmd.Context())
+			flushCtx, cancelFlush := context.WithTimeout(context.WithoutCancel(cmd.Context()), 10*time.Second)
+			defer cancelFlush()
+			ownLogsShutdown(flushCtx)
+			return err
 		}
 	}
 }
