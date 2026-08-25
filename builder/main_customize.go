@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/Graylog2/collector/superv"
@@ -87,24 +88,74 @@ func customizeSettings(params *otelcol.CollectorSettings) {
 	)
 }
 
+// noopFatalHook lets us emit a Fatal-level entry without zap terminating the
+// process, so the flush and the error return after it still happen. It cannot
+// be zapcore.WriteThenNoop: zap deliberately maps that value (and nil) back to
+// WriteThenFatal in terminalHookOverride (zap/logger.go:424), so only a
+// distinct hook type gets through.
+type noopFatalHook struct{}
+
+func (noopFatalHook) OnWrite(*zapcore.CheckedEntry, []zapcore.Field) {}
+
+// ownLogsFlushTimeout keep this low to not delay shutdown too much
+const ownLogsFlushTimeout = 1 * time.Second
+
 func customizeCommand(params *otelcol.CollectorSettings, cmd *cobra.Command) {
-	cmd.AddCommand(superv.GetCommand())
+	supervCmd := superv.GetCommand()
+	cmd.AddCommand(supervCmd)
+
+	if ownLogsShutdown == nil {
+		return
+	}
+
+	// flush logs only once, so we don't wait for the timeout twice
+	var flushOnce sync.Once
+	flushOwnLogs := func(ctx context.Context) {
+		flushOnce.Do(func() {
+			// context.WithoutCancel: on SIGTERM the command context is already
+			// canceled, which would make the export fail instantly.
+			flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ownLogsFlushTimeout)
+			defer cancel()
+			ownLogsShutdown(flushCtx)
+		})
+	}
 
 	// Wrapping RunE here to ensure we can also intercept error returns.
 	// This can happen because by design the otel-collector is crashing on bad config early and in that case
 	// we have no chance to send out these messages to the configured OTLP endpoint before the process exits
-	if ownLogsShutdown != nil {
-		origRunE := cmd.RunE
-		cmd.RunE = func(cmd *cobra.Command, args []string) error {
-			err := origRunE(cmd, args)
+	wrapRunE := func(c *cobra.Command) {
+		origRunE := c.RunE
+		if origRunE == nil {
+			return
+		}
+		c.RunE = func(c *cobra.Command, args []string) error {
+			err := origRunE(c, args)
 			if err != nil && ownLogsCore != nil {
-				logger := zap.New(ownLogsCore)
-				logger.Error(err.Error())
+				// Fatal, not Error: the process is dying, and own-logs applies a
+				// server-provided minimum level (see ownlogs.NewCoreFromFile). At
+				// log_level: fatal an Error entry would be filtered out, dropping
+				// the crash report in exactly the case where it matters most.
+				// noopFatalHook suppresses zap's default os.Exit(1) on Fatal so the
+				// flush below still runs and the error still reaches Cobra's stderr.
+				logger := zap.New(ownLogsCore, zap.WithFatalHook(noopFatalHook{}))
+				logger.Fatal(err.Error())
 			}
-			flushCtx, cancelFlush := context.WithTimeout(context.WithoutCancel(cmd.Context()), 10*time.Second)
-			defer cancelFlush()
-			ownLogsShutdown(flushCtx)
+			flushOwnLogs(c.Context())
 			return err
 		}
+	}
+	wrapRunE(cmd)
+	wrapRunE(supervCmd)
+
+	// Catch-all for the subcommands we don't wrap above: otelcol adds
+	// components, validate, config-print and featuregate. PersistentPostRun is
+	// inherited by every command in the tree, but Cobra skips it when RunE
+	// returns an error -- which is why the error paths need the wrappers.
+	existingPostRun := cmd.PersistentPostRun
+	cmd.PersistentPostRun = func(c *cobra.Command, args []string) {
+		if existingPostRun != nil {
+			existingPostRun(c, args)
+		}
+		flushOwnLogs(c.Context())
 	}
 }

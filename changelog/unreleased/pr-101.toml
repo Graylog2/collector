@@ -1,5 +1,5 @@
 type = "fixed"
-message = "Fix dropped own logs from the collector on error exit."
+message = "Fix dropped own logs on error exit, which are now reported at fatal level."
 
 issues = ["2"]
 pulls = ["101"]
