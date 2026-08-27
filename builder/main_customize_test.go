@@ -42,8 +42,8 @@ import (
 //     exportable even when the server sets log_level: fatal), without letting
 //     zap's default Fatal behaviour exit the process before the flush,
 //   - the own-logs provider is flushed on both success and error exits,
-//   - the flush uses a context with a bounded deadline, independent of the
-//     command's (possibly already canceled) context,
+//   - the flush uses a fresh context with a bounded deadline, so a dead OTLP
+//     endpoint cannot stall process exit,
 //   - the error is returned unchanged so Cobra's stderr printing — and
 //     with it the supervisor-captured agent.log — keeps working.
 //
@@ -155,7 +155,6 @@ func TestCustomizeCommand_FlushesOwnLogsWithBoundedContextOnSuccess(t *testing.T
 func TestCustomizeCommand_ReturnsRunErrorWhenOwnLogsDisabled(t *testing.T) {
 	// Guard: when own-logs is not configured (no own-logs.yaml), the wrapper
 	// must be inert — no panic on nil core/shutdown, error passed through.
-	defer resetOwnLogsState()
 	resetOwnLogsState()
 
 	runErr := errors.New("failed to get config: boom")

@@ -104,17 +104,26 @@ func customizeCommand(params *otelcol.CollectorSettings, cmd *cobra.Command) {
 	supervCmd := superv.GetCommand()
 	cmd.AddCommand(supervCmd)
 
-	if ownLogsShutdown == nil {
+	// customizeSettings sets ownLogsCore and ownLogsShutdown strictly as a
+	// pair. Checking both here keeps that invariant visible and makes the
+	// wrapper below simpler.
+	if ownLogsCore == nil || ownLogsShutdown == nil {
 		return
 	}
 
-	// flush logs only once, so we don't wait for the timeout twice
+	// Both the RunE wrapper and the root's PersistentPostRun fire on a clean
+	// run; the Once collapses them into a single shutdown call. (The SDK's
+	// Shutdown is idempotent — a second call returns immediately without
+	// waiting for the timeout again — so this only avoids a redundant call.)
 	var flushOnce sync.Once
-	flushOwnLogs := func(ctx context.Context) {
+	flushOwnLogs := func() {
 		flushOnce.Do(func() {
-			// context.WithoutCancel: on SIGTERM the command context is already
-			// canceled, which would make the export fail instantly.
-			flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ownLogsFlushTimeout)
+			// Fresh context with a bounded deadline so a dead OTLP endpoint
+			// cannot stall process exit. The command context has nothing to
+			// inherit: this binary runs cmd.Execute(), so it is a plain
+			// context.Background() — SIGTERM is handled inside Collector.Run
+			// and never cancels it.
+			flushCtx, cancel := context.WithTimeout(context.Background(), ownLogsFlushTimeout)
 			defer cancel()
 			ownLogsShutdown(flushCtx)
 		})
@@ -130,7 +139,7 @@ func customizeCommand(params *otelcol.CollectorSettings, cmd *cobra.Command) {
 		}
 		c.RunE = func(c *cobra.Command, args []string) error {
 			err := origRunE(c, args)
-			if err != nil && ownLogsCore != nil {
+			if err != nil {
 				// Fatal, not Error: the process is dying, and own-logs applies a
 				// server-provided minimum level (see ownlogs.NewCoreFromFile). At
 				// log_level: fatal an Error entry would be filtered out, dropping
@@ -140,7 +149,7 @@ func customizeCommand(params *otelcol.CollectorSettings, cmd *cobra.Command) {
 				logger := zap.New(ownLogsCore, zap.WithFatalHook(noopFatalHook{}))
 				logger.Fatal(err.Error())
 			}
-			flushOwnLogs(c.Context())
+			flushOwnLogs()
 			return err
 		}
 	}
@@ -156,6 +165,6 @@ func customizeCommand(params *otelcol.CollectorSettings, cmd *cobra.Command) {
 		if existingPostRun != nil {
 			existingPostRun(c, args)
 		}
-		flushOwnLogs(c.Context())
+		flushOwnLogs()
 	}
 }
