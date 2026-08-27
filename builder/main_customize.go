@@ -101,20 +101,9 @@ func (noopFatalHook) OnWrite(*zapcore.CheckedEntry, []zapcore.Field) {}
 const ownLogsFlushTimeout = 1 * time.Second
 
 func customizeCommand(params *otelcol.CollectorSettings, cmd *cobra.Command) {
-	cmd.AddCommand(superv.GetEnrollCommand())
-
-	if ownLogsShutdown != nil {
-		// Best-effort flush: PersistentPostRun only fires when RunE succeeds.
-		// Cobra skips all post-run hooks on error (command.go:1009), so on
-		// error exits the batch processor's periodic export (~1s) is the only
-		// flush mechanism. This is accepted — see the "Shutdown — Best-Effort
-		// Flush" section in the design spec.
-		existing := cmd.PersistentPostRun
-		cmd.PersistentPostRun = func(cmd *cobra.Command, args []string) {
-			if existing != nil {
-				existing(cmd, args)
 	supervCmd := superv.GetCommand()
 	cmd.AddCommand(supervCmd)
+	cmd.AddCommand(superv.GetEnrollCommand())
 
 	if ownLogsShutdown == nil {
 		return
