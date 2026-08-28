@@ -2,4 +2,4 @@ type = "a"
 message = "Add `enroll` command to bootstrap a Collector config."
 
 issues = ["92"]
-pulls = [""]
+pulls = ["102"]
