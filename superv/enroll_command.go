@@ -50,7 +50,7 @@ func GetEnrollCommand() *cobra.Command {
 	addConfigFlags(cmd)
 	cmd.Flags().StringP("endpoint", "e", "", "Enrollment endpoint")
 	cmd.Flags().StringP("token", "t", "", "Enrollment token")
-	cmd.Flags().Duration("timeout", time.Minute, "Time to wait for the enrollment to complete")
+	cmd.Flags().Duration("timeout", time.Minute, "Time to wait for the enrollment to complete (using 0 disables the timeout)")
 
 	return cmd
 }

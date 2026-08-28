@@ -152,12 +152,12 @@ func Enroll(ctx context.Context, logger *zap.Logger, cfg config.Config) error {
 		return fmt.Errorf("invalid TLS settings: %w", err)
 	}
 
-	headers := supervisor.ToHTTPHeaders(connSettings.Headers)
-	if authMgr.EnrollmentJWT() != "" {
-		headers.Set("Authorization", auth.BearerToken(authMgr.EnrollmentJWT()))
-	} else {
-		return fmt.Errorf("empty enrollment JWT")
+	if authMgr.EnrollmentJWT() == "" {
+		return errors.New("empty enrollment JWT")
 	}
+
+	headers := supervisor.ToHTTPHeaders(connSettings.Headers)
+	headers.Set("Authorization", auth.BearerToken(authMgr.EnrollmentJWT()))
 
 	clientCfg := opamp.ClientConfig{
 		Endpoint:             connSettings.Endpoint,
