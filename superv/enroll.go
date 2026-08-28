@@ -45,7 +45,7 @@ func Enroll(ctx context.Context, logger *zap.Logger, cfg config.Config) error {
 	authMgr := auth.NewManager(logger.Named("auth"), auth.ManagerConfig{
 		KeysDir:     cfg.Keys.Dir,
 		JWTLifetime: cfg.Server.Auth.JWTLifetime,
-		InsecureTLS: cfg.Server.Auth.InsecureTLS,
+		InsecureTLS: cfg.IsInsecure(),
 	})
 
 	if authMgr.IsEnrolled() {
@@ -62,6 +62,13 @@ func Enroll(ctx context.Context, logger *zap.Logger, cfg config.Config) error {
 	}
 	if cfg.Server.Auth.EnrollmentToken == "" {
 		return errors.New("no enrollment token configured")
+	}
+
+	// Let the server validate the token up front: a definitive rejection would
+	// otherwise be retried by the OpAMP client until the timeout expires and
+	// be masked behind a generic timeout error.
+	if err := authMgr.CheckEnrollmentToken(ctx, cfg.Server.Auth.EnrollmentEndpoint, cfg.Server.Auth.EnrollmentToken, cfg.Server.Auth.EnrollmentHeaders); err != nil {
+		return err
 	}
 
 	instanceUID, err := persistence.LoadOrCreateInstanceUID(cfg.Persistence.Dir)
@@ -166,12 +173,6 @@ func Enroll(ctx context.Context, logger *zap.Logger, cfg config.Config) error {
 		Capabilities: opamp.Capabilities{
 			AcceptsOpAMPConnectionSettings: true,
 		},
-	}
-
-	// A definitive token rejection would otherwise be retried by the client
-	// until the timeout expires and be masked behind a generic timeout error.
-	if err := opamp.PreflightAuthCheck(ctx, clientCfg); err != nil {
-		return err
 	}
 
 	client, err := opamp.NewClient(logger.Named("opamp"), clientCfg, callbacks)

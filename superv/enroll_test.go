@@ -93,6 +93,27 @@ func TestEnroll_FreshEnrollment(t *testing.T) {
 	require.Equal(t, expectedEndpoint, settings.Endpoint)
 }
 
+// The --insecure flag sets both TLS knobs, but a config file may set only
+// server.tls.insecure. The OpAMP connection honors either knob via
+// cfg.IsInsecure(), so the auth manager (auth check + JWKS fetch) must too.
+func TestEnroll_HonorsServerTLSInsecureSetting(t *testing.T) {
+	server, err := testserver.New()
+	require.NoError(t, err)
+	server.Start()
+	defer server.Stop()
+
+	token, err := server.CreateEnrollmentJWT("test", time.Hour)
+	require.NoError(t, err)
+
+	cfg := enrollTestConfig(t, server.URL(), token)
+	cfg.Server.Auth.InsecureTLS = false // only server.tls.insecure remains set
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	require.NoError(t, superv.Enroll(ctx, zaptest.NewLogger(t), cfg))
+}
+
 func TestEnroll_SettingsPersistFailureIsRecoverable(t *testing.T) {
 	server, err := testserver.New()
 	require.NoError(t, err)
@@ -193,15 +214,15 @@ func TestEnroll_MissingEnrollmentSettings(t *testing.T) {
 }
 
 func TestEnroll_FailsFastWhenServerRejectsToken(t *testing.T) {
-	// Real JWKS (so local token validation succeeds), but the OpAMP endpoint
-	// rejects the connection as unauthorized, e.g. for a token that was
-	// revoked server-side.
+	// Real JWKS (so local token validation succeeds), but the server rejects
+	// the token at the auth-check endpoint, e.g. for a token that was revoked
+	// server-side.
 	server, err := testserver.New()
 	require.NoError(t, err)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/jwks.json", server.HandleJWKS)
-	mux.HandleFunc("/v1/opamp", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(auth.EnrollmentAuthCheckPath, func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 	})
 	httpServer := httptest.NewTLSServer(mux)
@@ -234,6 +255,7 @@ func TestEnroll_TimeoutIncludesLastConnectionError(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/jwks.json", server.HandleJWKS)
+	mux.HandleFunc(auth.EnrollmentAuthCheckPath, server.HandleEnrollAuthCheck)
 	mux.HandleFunc("/v1/opamp", func(w http.ResponseWriter, r *http.Request) {
 		conn, _, err := http.NewResponseController(w).Hijack()
 		require.NoError(t, err)
