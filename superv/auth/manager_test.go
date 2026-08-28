@@ -21,16 +21,20 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/Graylog2/collector/superv/identity"
 	"github.com/Graylog2/collector/superv/internal/testpki"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/require"
@@ -38,6 +42,13 @@ import (
 
 	"github.com/Graylog2/collector/superv/persistence"
 )
+
+func isEnrolled(t *testing.T, cb func() (bool, error)) bool {
+	t.Helper()
+	value, err := cb()
+	require.NoError(t, err)
+	return value
+}
 
 func TestManager_GetSigningKeyPath(t *testing.T) {
 	m := NewManager(zaptest.NewLogger(t), ManagerConfig{KeysDir: "/tmp/test-keys"})
@@ -60,17 +71,17 @@ func TestManager_IsEnrolled(t *testing.T) {
 	m := NewManager(zaptest.NewLogger(t), ManagerConfig{KeysDir: keysDir})
 
 	// Initially not enrolled
-	require.False(t, m.IsEnrolled())
+	require.False(t, isEnrolled(t, m.IsEnrolled))
 
 	cert := testpki.GenerateTestCert(t)
 
 	require.NoError(t, persistence.SaveSigningKey(keysDir, cert.Key))
 
-	require.False(t, m.IsEnrolled()) // Still missing cert
+	require.False(t, isEnrolled(t, m.IsEnrolled)) // Still missing cert
 
 	require.NoError(t, persistence.SaveCertificate(keysDir, cert.Cert))
 
-	require.True(t, m.IsEnrolled())
+	require.True(t, isEnrolled(t, m.IsEnrolled))
 }
 
 func TestManager_LoadCredentials(t *testing.T) {
@@ -88,6 +99,57 @@ func TestManager_LoadCredentials(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, m.Certificate())
 	require.Equal(t, CertificateHexFingerprint(cert.Cert), m.CertFingerprint())
+}
+
+func TestManager_LoadCredentials_RejectsMismatchedSigningKeyAndCertificate(t *testing.T) {
+	dir := t.TempDir()
+	keysDir := filepath.Join(dir, "keys")
+
+	cert := testpki.GenerateTestCert(t)
+	otherCert := testpki.GenerateTestCert(t)
+	require.NoError(t, persistence.SaveSigningKey(keysDir, otherCert.Key))
+	require.NoError(t, persistence.SaveCertificate(keysDir, cert.Cert))
+
+	m := NewManager(zaptest.NewLogger(t), ManagerConfig{KeysDir: keysDir})
+
+	err := m.LoadCredentials()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "signing key does not match certificate public key")
+	require.Nil(t, m.Certificate())
+}
+
+func TestVerifyKeyCertPair(t *testing.T) {
+	_, signingPriv, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	t.Run("matching key and cert", func(t *testing.T) {
+		cert := testpki.GenerateTestCert(t, testpki.WithPrivateKey(signingPriv))
+		require.NoError(t, verifyKeyCertPair(signingPriv, cert.Cert))
+	})
+
+	t.Run("mismatched key and cert", func(t *testing.T) {
+		other := testpki.GenerateTestCert(t)
+		err := verifyKeyCertPair(signingPriv, other.Cert)
+		require.ErrorContains(t, err, "signing key does not match certificate public key")
+	})
+
+	t.Run("non-Ed25519 certificate public key", func(t *testing.T) {
+		rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+		require.NoError(t, err)
+		tmpl := &x509.Certificate{
+			SerialNumber: big.NewInt(1),
+			Subject:      pkix.Name{CommonName: "rsa-cert"},
+			NotBefore:    time.Now().Add(-time.Hour),
+			NotAfter:     time.Now().Add(time.Hour),
+		}
+		certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &rsaKey.PublicKey, rsaKey)
+		require.NoError(t, err)
+		cert, err := x509.ParseCertificate(certDER)
+		require.NoError(t, err)
+
+		err = verifyKeyCertPair(signingPriv, cert)
+		require.ErrorContains(t, err, "certificate public key is not Ed25519")
+	})
 }
 
 func TestManager_LoadCredentials_NotEnrolled(t *testing.T) {
@@ -161,6 +223,8 @@ func TestManager_PrepareAndCompleteEnrollment(t *testing.T) {
 	dir := t.TempDir()
 	keysDir := filepath.Join(dir, "keys")
 
+	require.NoError(t, persistence.InitIdentity(zaptest.NewLogger(t), dir, keysDir))
+
 	// Create server keys for JWKS and enrollment JWT
 	serverPub, serverPriv, _ := ed25519.GenerateKey(rand.Reader)
 
@@ -207,7 +271,7 @@ func TestManager_PrepareAndCompleteEnrollment(t *testing.T) {
 
 	// Verify pending state
 	require.True(t, m.HasPendingEnrollment())
-	require.False(t, m.IsEnrolled())
+	require.False(t, isEnrolled(t, m.IsEnrolled))
 
 	// Parse CSR to verify it's valid
 	block, _ := pem.Decode(result.CSRPEM)
@@ -227,7 +291,7 @@ func TestManager_PrepareAndCompleteEnrollment(t *testing.T) {
 
 	// Verify enrollment completed
 	require.False(t, m.HasPendingEnrollment())
-	require.True(t, m.IsEnrolled())
+	require.True(t, isEnrolled(t, m.IsEnrolled))
 	require.NotNil(t, m.Certificate())
 	require.NotEmpty(t, m.CertFingerprint())
 
@@ -265,7 +329,31 @@ func TestManager_CompleteEnrollment_NoPending(t *testing.T) {
 	// Try to complete without preparing first
 	err := m.CompleteEnrollment([]byte("some-cert"))
 	require.Error(t, err)
-	require.ErrorContains(t, err, "no pending enrollment")
+	require.ErrorContains(t, err, "no enrollment pending")
+}
+
+func TestManager_CompleteEnrollment_RejectsMismatchedKeyAndCert(t *testing.T) {
+	dir := t.TempDir()
+	keysDir := filepath.Join(dir, "keys")
+
+	// Persist a signing key whose public key does not match the cert we'll submit.
+	cert := testpki.GenerateTestCert(t)
+	otherCert := testpki.GenerateTestCert(t)
+	require.NoError(t, persistence.SaveSigningKey(keysDir, otherCert.Key))
+
+	m := NewManager(zaptest.NewLogger(t), ManagerConfig{KeysDir: keysDir})
+	m.mu.Lock()
+	m.pendingEnrollmentJWT = "stub-jwt"
+	m.mu.Unlock()
+
+	err := m.CompleteEnrollment(cert.CertPEM)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "signing key does not match certificate public key")
+	certExists, err := persistence.CertificateExists(keysDir)
+	require.NoError(t, err)
+	require.False(t, certExists, "mismatched certificate must not be persisted")
+	require.True(t, m.HasPendingEnrollment(), "pending state should remain after rejection")
+	require.Nil(t, m.Certificate())
 }
 
 func TestManager_CertificateNeedsRenewal(t *testing.T) {
@@ -353,19 +441,18 @@ func TestManager_PrepareRenewal(t *testing.T) {
 	keysDir := filepath.Join(dir, "keys")
 
 	// Generate signing keypair and save
-	_, signingPriv, err := GenerateSigningKeypair()
+	_, signingPriv, err := identity.GenerateSigningKeypair()
 	require.NoError(t, err)
 	err = persistence.SaveSigningKey(keysDir, signingPriv)
 	require.NoError(t, err)
 
 	// Generate encryption keypair and save private key
-	encPubExpected, encPriv, err := GenerateEncryptionKeypair()
+	encPubExpected, encPriv, err := identity.GenerateEncryptionKeypair()
 	require.NoError(t, err)
-	err = persistence.SaveEncryptionKey(keysDir, encPriv)
+	err = persistence.SaveEncryptionKey(keysDir, encPriv.Bytes())
 	require.NoError(t, err)
 
-	// Create cert with Organization
-	cert := testpki.GenerateTestCert(t)
+	cert := testpki.GenerateTestCert(t, testpki.WithPrivateKey(signingPriv))
 	err = persistence.SaveCertificate(keysDir, cert.Cert)
 	require.NoError(t, err)
 
@@ -400,7 +487,7 @@ func TestManager_PrepareRenewal(t *testing.T) {
 		}
 	}
 	require.NotNil(t, foundEncPub, "encryption public key extension not found")
-	require.Equal(t, encPubExpected, foundEncPub)
+	require.Equal(t, encPubExpected.Bytes(), foundEncPub)
 }
 
 func TestManager_PrepareRenewal_NotLoaded(t *testing.T) {
@@ -417,7 +504,7 @@ func TestManager_CompleteRenewal(t *testing.T) {
 	dir := t.TempDir()
 	keysDir := filepath.Join(dir, "keys")
 
-	_, priv, err := GenerateSigningKeypair()
+	_, priv, err := identity.GenerateSigningKeypair()
 	require.NoError(t, err)
 	err = persistence.SaveSigningKey(keysDir, priv)
 	require.NoError(t, err)
@@ -455,7 +542,7 @@ func TestManager_CompleteRenewal_WrongKey(t *testing.T) {
 	dir := t.TempDir()
 	keysDir := filepath.Join(dir, "keys")
 
-	_, priv, err := GenerateSigningKeypair()
+	_, priv, err := identity.GenerateSigningKeypair()
 	require.NoError(t, err)
 	err = persistence.SaveSigningKey(keysDir, priv)
 	require.NoError(t, err)
@@ -473,7 +560,7 @@ func TestManager_CompleteRenewal_WrongKey(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create cert with a different key
-	_, differentPriv, err := GenerateSigningKeypair()
+	_, differentPriv, err := identity.GenerateSigningKeypair()
 	require.NoError(t, err)
 	newCert := testpki.GenerateTestCert(t,
 		testpki.WithPrivateKey(differentPriv),
@@ -482,7 +569,7 @@ func TestManager_CompleteRenewal_WrongKey(t *testing.T) {
 
 	err = m.CompleteRenewal(newCert.CertPEM)
 	require.Error(t, err)
-	require.ErrorContains(t, err, "public key mismatch")
+	require.ErrorContains(t, err, "signing key does not match certificate public key")
 
 	// Old cert still loaded
 	require.Equal(t, oldCert.Cert.NotAfter.Unix(), m.Certificate().NotAfter.Unix())
@@ -492,7 +579,7 @@ func TestManager_CompleteRenewal_NotAfterNotExtended(t *testing.T) {
 	dir := t.TempDir()
 	keysDir := filepath.Join(dir, "keys")
 
-	_, priv, err := GenerateSigningKeypair()
+	_, priv, err := identity.GenerateSigningKeypair()
 	require.NoError(t, err)
 	err = persistence.SaveSigningKey(keysDir, priv)
 	require.NoError(t, err)
@@ -527,7 +614,7 @@ func TestManager_CompleteRenewal_InvalidPEM(t *testing.T) {
 	dir := t.TempDir()
 	keysDir := filepath.Join(dir, "keys")
 
-	_, priv, err := GenerateSigningKeypair()
+	_, priv, err := identity.GenerateSigningKeypair()
 	require.NoError(t, err)
 	err = persistence.SaveSigningKey(keysDir, priv)
 	require.NoError(t, err)
