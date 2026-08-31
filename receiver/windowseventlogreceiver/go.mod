@@ -1,6 +1,6 @@
 module github.com/Graylog2/collector/receiver/windowseventlogreceiver
 
-go 1.26.0
+go 1.27
 
 require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza v0.159.0

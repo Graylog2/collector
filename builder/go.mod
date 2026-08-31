@@ -2,7 +2,7 @@
 
 module go.opentelemetry.io/collector/cmd/builder
 
-go 1.26.0
+go 1.27
 
 require (
 	github.com/Graylog2/collector/extension/sidecar v1.5.0

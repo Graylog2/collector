@@ -1,6 +1,6 @@
 module github.com/Graylog2/collector
 
-go 1.26
+go 1.27
 
 tool (
 	github.com/go-task/task/v3/cmd/task
