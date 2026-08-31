@@ -1,0 +1,4 @@
+type = "c"
+message = "Update Go to 1.27."
+
+pulls = ["109"]
