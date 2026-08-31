@@ -103,6 +103,7 @@ const ownLogsFlushTimeout = 1 * time.Second
 func customizeCommand(params *otelcol.CollectorSettings, cmd *cobra.Command) {
 	supervCmd := superv.GetCommand()
 	cmd.AddCommand(supervCmd)
+	cmd.AddCommand(superv.GetEnrollCommand())
 
 	if ownLogsShutdown == nil {
 		return

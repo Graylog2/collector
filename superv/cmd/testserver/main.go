@@ -95,15 +95,6 @@ func main() {
 	logger := testserver.NewDebugLogger(verbosity, jsonLogs)
 	server.Logger = logger
 
-	// Create the server with custom address
-	mux := http.NewServeMux()
-
-	// JWKS endpoint
-	mux.HandleFunc("/.well-known/jwks.json", server.HandleJWKS)
-
-	// OpAMP endpoint
-	mux.HandleFunc("/v1/opamp", server.HandleOpAMP)
-
 	// Generate self-signed TLS cert
 	tlsConfig, err := generateTLSConfig()
 	if err != nil {
@@ -112,7 +103,7 @@ func main() {
 
 	httpServer := &http.Server{
 		Addr:        addr,
-		Handler:     mux,
+		Handler:     server.Handler(),
 		TLSConfig:   tlsConfig,
 		ReadTimeout: 5 * time.Second,
 	}
