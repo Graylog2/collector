@@ -26,16 +26,16 @@
     Show this help. The script also accepts --help, /? and /help.
 
 .EXAMPLE
-    .\collector-install-windows.ps1 -Endpoint https://graylog.example.com -Token eyJhb...
+    .\install-windows.ps1 -Endpoint https://graylog.example.com -Token eyJhb...
 
 .EXAMPLE
-    .\collector-install-windows.ps1 -Endpoint https://graylog.example.com -Token eyJhb... -Version 0.4.0
+    .\install-windows.ps1 -Endpoint https://graylog.example.com -Token eyJhb... -Version 0.4.0
 
 .EXAMPLE
-    .\collector-install-windows.ps1 -Endpoint https://graylog.example.com -TokenFile C:\path\to\token.txt
+    .\install-windows.ps1 -Endpoint https://graylog.example.com -TokenFile C:\path\to\token.txt
 
 .EXAMPLE
-    .\collector-install-windows.ps1 --help
+    .\install-windows.ps1 --help
 #>
 #Requires -Version 5.1
 # Without positional binding, unbound arguments such as --help land in
@@ -66,6 +66,7 @@ $ProgressPreference = 'SilentlyContinue'
 $GitHubRepo = 'Graylog2/collector'
 $ManifestName = 'SHA256SUMS'
 $ServiceName = 'graylog-collector'
+$KeysDir = Join-Path $env:ProgramData 'Graylog\Collector\keys'
 
 function Show-Help {
     Get-Help -Name $PSCommandPath -Detailed
@@ -108,6 +109,26 @@ function Assert-Administrator {
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         throw 'This script must run in an elevated PowerShell session (Run as Administrator).'
     }
+}
+
+# The Collector is enrolled when a signing key and certificate exist. It then
+# keeps using them and ignores the enrollment token, so tell the user.
+function Show-ExistingEnrollmentWarning {
+    $keyExists = Test-Path -Path (Join-Path $KeysDir 'signing.key') -PathType Leaf
+    $certExists = Test-Path -Path (Join-Path $KeysDir 'signing.crt') -PathType Leaf
+    if (-not ($keyExists -and $certExists)) {
+        return
+    }
+    Write-Warning @"
+The Collector is already enrolled. Credentials exist in "$KeysDir".
+The Collector keeps using them and ignores the enrollment token.
+To enroll again, first remove the Collector in Graylog. The server rejects an
+enrollment with new credentials while it still knows the Collector. Then stop
+the service, remove the credentials, and run this script again:
+
+    Stop-Service $ServiceName
+    Remove-Item -Recurse -Force "$KeysDir"
+"@
 }
 
 # Windows PowerShell 5.1 does not enable TLS 1.2 by default on older systems.
@@ -191,6 +212,7 @@ function Install-Msi {
 
 Assert-Arguments
 Assert-Administrator
+Show-ExistingEnrollmentWarning
 Enable-Tls12
 
 if ($Version) {

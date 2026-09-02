@@ -8,8 +8,8 @@
 # the launchd service.
 #
 # Usage:
-#   sudo sh collector-install-macos.sh --endpoint <URL> --token <TOKEN> [--version <VERSION>]
-#   sudo sh collector-install-macos.sh --endpoint <URL> --token-file <PATH> [--version <VERSION>]
+#   sudo sh install-macos.sh --endpoint <URL> --token <TOKEN> [--version <VERSION>]
+#   sudo sh install-macos.sh --endpoint <URL> --token-file <PATH> [--version <VERSION>]
 #
 # Options:
 #   -e, --endpoint <URL>    Enrollment endpoint, usually the Graylog server URL
@@ -27,7 +27,8 @@ GITHUB_REPO="Graylog2/collector"
 MANIFEST_NAME="SHA256SUMS"
 CONFIG_DIR="/Library/Application Support/Graylog/Collector"
 CONFIG_FILE="$CONFIG_DIR/supervisor.yaml"
-CONFIG_MARKER="# Created by collector-install-macos.sh"
+CONFIG_MARKER="# Created by install-macos.sh"
+KEYS_DIR="$CONFIG_DIR/keys"
 SERVICE_LABEL="org.graylog.collector"
 # Apple Developer ID that signs the Graylog Collector installer packages.
 SIGNING_IDENTITY="Developer ID Installer: Graylog, Inc. (6NH52462TL)"
@@ -39,8 +40,8 @@ VERSION=""
 
 usage() {
 	cat <<EOF
-Usage: sudo sh collector-install-macos.sh --endpoint <URL> --token <TOKEN> [--version <VERSION>]
-       sudo sh collector-install-macos.sh --endpoint <URL> --token-file <PATH> [--version <VERSION>]
+Usage: sudo sh install-macos.sh --endpoint <URL> --token <TOKEN> [--version <VERSION>]
+       sudo sh install-macos.sh --endpoint <URL> --token-file <PATH> [--version <VERSION>]
 
 Options:
   -e, --endpoint <URL>    Enrollment endpoint, usually the Graylog server URL
@@ -183,14 +184,41 @@ verify_signature() {
 		fail "$ASSET_NAME is not signed by \"$SIGNING_IDENTITY\""
 }
 
+# The Collector is enrolled when a signing key and certificate exist. It then
+# keeps using them and ignores the enrollment token, so tell the user.
+is_enrolled() {
+	[ -f "$KEYS_DIR/signing.key" ] && [ -f "$KEYS_DIR/signing.crt" ]
+}
+
+warn_existing_enrollment() {
+	is_enrolled || return 0
+	cat >&2 <<EOF
+WARNING: The Collector is already enrolled. Credentials exist in "$KEYS_DIR".
+         The Collector keeps using them and ignores the enrollment token.
+         To enroll again, first remove the Collector in Graylog. The server
+         rejects an enrollment with new credentials while it still knows the
+         Collector. Then stop the service, remove the credentials, and run
+         this script again:
+
+             sudo launchctl bootout system/$SERVICE_LABEL
+             sudo rm -rf "$KEYS_DIR"
+
+EOF
+}
+
 # Stop early when a configuration file exists that this script did not create.
 # A file with the marker comment came from an earlier run and is replaced.
 check_existing_config() {
 	[ -f "$CONFIG_FILE" ] || return 0
 	head -n 1 "$CONFIG_FILE" | grep -qF "$CONFIG_MARKER" && return 0
 
-	fail "$CONFIG_FILE exists and was not created by this script.
+	message="$CONFIG_FILE exists and was not created by this script.
 Set the enrollment endpoint and token in that file by hand, or remove the file and run this script again."
+	if is_enrolled; then
+		message="$message
+Note: Removing the file does not enroll the Collector again. See the warning above."
+	fi
+	fail "$message"
 }
 
 # The package starts the service right after installation, so the enrollment
@@ -219,6 +247,7 @@ main() {
 	parse_args "$@"
 	check_macos
 	check_root
+	warn_existing_enrollment
 	check_existing_config
 	detect_downloader
 	resolve_release

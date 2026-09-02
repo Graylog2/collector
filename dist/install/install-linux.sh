@@ -7,8 +7,8 @@
 # and starts the systemd service.
 #
 # Usage:
-#   sudo sh collector-install-linux.sh --endpoint <URL> --token <TOKEN> [--version <VERSION>]
-#   sudo sh collector-install-linux.sh --endpoint <URL> --token-file <PATH> [--version <VERSION>]
+#   sudo sh install-linux.sh --endpoint <URL> --token <TOKEN> [--version <VERSION>]
+#   sudo sh install-linux.sh --endpoint <URL> --token-file <PATH> [--version <VERSION>]
 #
 # Options:
 #   -e, --endpoint <URL>    Enrollment endpoint, usually the Graylog server URL
@@ -27,6 +27,7 @@ MANIFEST_NAME="SHA256SUMS"
 CONFIG_DIR="/etc/graylog/collector"
 ENROLLMENT_FILE="$CONFIG_DIR/enrollment.env"
 SERVICE_NAME="graylog-collector.service"
+KEYS_DIR="/var/lib/graylog-collector/keys"
 
 ENDPOINT=""
 TOKEN=""
@@ -35,8 +36,8 @@ VERSION=""
 
 usage() {
 	cat <<EOF
-Usage: sudo sh collector-install-linux.sh --endpoint <URL> --token <TOKEN> [--version <VERSION>]
-       sudo sh collector-install-linux.sh --endpoint <URL> --token-file <PATH> [--version <VERSION>]
+Usage: sudo sh install-linux.sh --endpoint <URL> --token <TOKEN> [--version <VERSION>]
+       sudo sh install-linux.sh --endpoint <URL> --token-file <PATH> [--version <VERSION>]
 
 Options:
   -e, --endpoint <URL>    Enrollment endpoint, usually the Graylog server URL
@@ -103,6 +104,24 @@ parse_args() {
 
 check_root() {
 	[ "$(id -u)" -eq 0 ] || fail "this script must run as root (use sudo)"
+}
+
+# The Collector is enrolled when a signing key and certificate exist. It then
+# keeps using them and ignores the enrollment token, so tell the user.
+warn_existing_enrollment() {
+	[ -f "$KEYS_DIR/signing.key" ] && [ -f "$KEYS_DIR/signing.crt" ] || return 0
+	cat >&2 <<EOF
+WARNING: The Collector is already enrolled. Credentials exist in "$KEYS_DIR".
+         The Collector keeps using them and ignores the enrollment token.
+         To enroll again, first remove the Collector in Graylog. The server
+         rejects an enrollment with new credentials while it still knows the
+         Collector. Then stop the service, remove the credentials, and run
+         this script again:
+
+             sudo systemctl stop $SERVICE_NAME
+             sudo rm -rf "$KEYS_DIR"
+
+EOF
 }
 
 # Select the download tool. download_file writes to the given file path;
@@ -256,6 +275,7 @@ start_service() {
 main() {
 	parse_args "$@"
 	check_root
+	warn_existing_enrollment
 	detect_downloader
 	detect_package_type
 	detect_arch
