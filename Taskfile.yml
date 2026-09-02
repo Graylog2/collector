@@ -417,8 +417,10 @@ tasks:
     requires:
       vars:
         - VERSION
-    cmd: >
-      sed -i -E -e 's,^  version: .+$,  version: {{.VERSION}},g' builder/builder-config.yaml
+    cmds:
+      - cmd: >
+          sed -i -E -e 's,^  version: .+$,  version: {{.VERSION}},g' builder/builder-config.yaml
+      - task: builder:generate
 
   version:get:
     desc: 'Bump the patch version and set SNAPSHOT suffix in version.env'
