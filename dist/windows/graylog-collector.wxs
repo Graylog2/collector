@@ -65,7 +65,8 @@
                       Type="raw" />
     </Property>
 
-    <Property Id="ENROLLTOKEN" Secure="yes">
+    <!-- Hidden masks the token in Windows Installer logs (e.g. msiexec /l*v). -->
+    <Property Id="ENROLLTOKEN" Secure="yes" Hidden="yes">
       <RegistrySearch Id="ExistingEnrollToken"
                       Root="HKLM"
                       Key="SOFTWARE\Graylog\Collector"

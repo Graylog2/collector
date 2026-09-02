@@ -16,6 +16,12 @@ homepage: "https://www.graylog.org/"
 
 license: "SSPL-1"
 
+# NOTE: The packages declare no dependencies. The install script in
+# dist/install/collector-install-linux.sh relies on this and installs them
+# with "dpkg -i" and "rpm -U", which do not resolve dependencies. When you
+# add a "depends" section here, switch the script to apt-get, dnf, yum, or
+# zypper so that dependencies get installed.
+
 contents:
   - src: "target/graylog-collector-${VERSION}${VERSION_SUFFIX}-linux-${ARCH}"
     dst: "/usr/bin/graylog-collector"
