@@ -1,7 +1,7 @@
 dist:
   name: graylog-collector
   description: Graylog Collector
-  version: 0.4.1-SNAPSHOT
+  version: 0.5.0
   output_path: ./builder
   cgo_enabled: false
 
