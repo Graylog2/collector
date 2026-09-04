@@ -20,6 +20,8 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Fragment>
     <WixVariable Id="WixUILicenseRtf" Value="LICENSE.rtf" />
+    <WixVariable Id="WixUIBannerBmp" Value="graylog-banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="graylog-dialog.bmp" />
 
     <!--
       Self-contained UI: no WixUI template overrides.
