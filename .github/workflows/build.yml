@@ -130,6 +130,11 @@ jobs:
             printf -- "- https://downloads.graylog.org/snapshots/collector/%s/%s\n" "$SNAPSHOT_PATH" "$(basename "$file")" >> "$GITHUB_STEP_SUMMARY"
           done
 
+          for file in $(find . -maxdepth 1 -name 'install-*' -type f | grep -e '\.sh$' -e '\.ps1$' | sort -V); do
+            aws s3 cp --no-progress "$file" "s3://${AWS_S3_BUCKET}/collector/${SNAPSHOT_PATH}/"
+            printf -- "- https://downloads.graylog.org/snapshots/collector/%s/%s\n" "$SNAPSHOT_PATH" "$(basename "$file")" >> "$GITHUB_STEP_SUMMARY"
+          done
+
       - name: "Upload artifacts"
         # Dependabot can't upload to S3, let's archive the artifacts for testing.
         if: "github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'"

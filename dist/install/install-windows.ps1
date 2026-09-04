@@ -9,6 +9,11 @@
 
     Run this script from an elevated (Administrator) PowerShell session.
 
+    The script is meant for the initial installation. On a machine where the
+    Collector is already installed, the installer keeps the endpoint, token,
+    and TLS setting from the first installation. To change them, uninstall
+    the Collector first.
+
 .PARAMETER Endpoint
     Enrollment endpoint, usually the Graylog server URL.
 
@@ -74,6 +79,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 $GitHubRepo = 'Graylog2/collector'
 $ManifestName = 'SHA256SUMS'
+$AuthCheckPath = '/v1/opamp-enroll-auth-check'
 $ServiceName = 'graylog-collector'
 $KeysDir = Join-Path $env:ProgramData 'Graylog\Collector\keys'
 
@@ -143,10 +149,10 @@ function Enable-Tls12 {
     [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 }
 
-# A certificate validation callback that accepts every certificate, for
-# Windows PowerShell 5.1. It must be compiled code: .NET runs the callback on a
-# thread without a PowerShell runspace, so a script block fails there with
-# "An unexpected error occurred on a send".
+# A certificate validation callback that accepts every certificate. It must be
+# compiled code: .NET runs the callback on a thread without a PowerShell
+# runspace, so a script block fails there with "An unexpected error occurred
+# on a send".
 function Get-TrustAllCertificatesCallback {
     if (-not ('GraylogCollectorInstall.TrustAllCertificates' -as [type])) {
         Add-Type -TypeDefinition @"
@@ -173,100 +179,140 @@ namespace GraylogCollectorInstall
     return [GraylogCollectorInstall.TrustAllCertificates]::Callback
 }
 
-# Send one request to the given URL. Only the transport matters here, so any
-# HTTP response counts as success. Returns $null on success and the error
-# message otherwise.
+# Send one GET request with the enrollment token to the given URL. Returns an
+# object with the HTTP StatusCode (0 when no response arrived), the
+# ContentType, and the Error.
+#
+# This uses HttpWebRequest instead of Invoke-WebRequest. Windows PowerShell 5.1
+# fails with "Operation is not valid due to the current state of the object"
+# when Invoke-WebRequest receives a redirect it may not follow. The request
+# object also takes the certificate callback per request, so no process-wide
+# state changes.
 function Invoke-EndpointProbe {
     param([string]$Uri, [bool]$SkipCertificateCheck)
 
-    # DisableKeepAlive keeps the connection out of the process-wide pool. A
-    # pooled connection that was opened without verification would otherwise
-    # serve a later request with verification, and skip the handshake.
-    $arguments = @{
-        Uri              = $Uri
-        Method           = 'Get'
-        UseBasicParsing  = $true
-        TimeoutSec       = 20
-        DisableKeepAlive = $true
-    }
-    # Windows PowerShell 5.1 has no -SkipCertificateCheck. It needs the
-    # process-wide callback, which is restored afterwards.
-    $callbackChanged = $false
-    $previousCallback = $null
+    $request = [Net.HttpWebRequest]::Create($Uri)
+    $request.Method = 'GET'
+    $request.Timeout = 20000
+    $request.ReadWriteTimeout = 20000
+    # Redirects are reported as their own status: a wrong sub path often
+    # redirects to the web interface, which would answer 200.
+    $request.AllowAutoRedirect = $false
+    # No pooled connections. A pooled connection that was opened without
+    # verification would otherwise serve a later request with verification,
+    # and skip the handshake.
+    $request.KeepAlive = $false
+    $request.Headers.Add('Authorization', "Bearer $Token")
     if ($SkipCertificateCheck) {
-        if ($PSVersionTable.PSVersion.Major -ge 6) {
-            $arguments.SkipCertificateCheck = $true
-        } else {
-            $previousCallback = [Net.ServicePointManager]::ServerCertificateValidationCallback
-            [Net.ServicePointManager]::ServerCertificateValidationCallback = Get-TrustAllCertificatesCallback
-            $callbackChanged = $true
+        $request.ServerCertificateValidationCallback = Get-TrustAllCertificatesCallback
+    }
+
+    $response = $null
+    try {
+        $response = $request.GetResponse()
+    } catch [Net.WebException] {
+        # An HTTP error status still proves that the connection works.
+        if (-not $_.Exception.Response) {
+            return [PSCustomObject]@{ StatusCode = 0; ContentType = ''; Error = $_.Exception.Message }
         }
+        $response = $_.Exception.Response
+    } catch {
+        return [PSCustomObject]@{ StatusCode = 0; ContentType = ''; Error = $_.Exception.Message }
     }
 
     try {
-        Invoke-WebRequest @arguments | Out-Null
-        return $null
-    } catch {
-        # An HTTP error status still proves that the connection works.
-        $response = $_.Exception.PSObject.Properties['Response']
-        if ($response -and $response.Value) {
-            return $null
+        return [PSCustomObject]@{
+            StatusCode  = [int]$response.StatusCode
+            ContentType = "$($response.ContentType)"
+            Error       = $null
         }
-        return $_.Exception.Message
     } finally {
-        if ($callbackChanged) {
-            [Net.ServicePointManager]::ServerCertificateValidationCallback = $previousCallback
-        }
+        $response.Close()
     }
 }
 
-# Make sure the enrollment endpoint is reachable before anything is installed,
-# and explain the two common mistakes: The supervisor rejects a server
-# certificate that the system does not trust, such as a self-signed one. When
-# a request fails with verification but succeeds without it, the certificate
-# is the problem, and the user needs -SkipTlsVerify. When an http:// URL
-# fails but the same host answers on https://, the URL has the wrong scheme.
-# Known gap: a reverse proxy that answers plain HTTP on a TLS port with a
-# 400 status counts as reachable here.
+# The server base URL is the endpoint without a trailing slash and without the
+# default OpAMP path, like the supervisor derives it.
+function Get-AuthCheckUrl {
+    param([string]$EndpointUrl)
+
+    $base = $EndpointUrl.TrimEnd('/')
+    if ($base.EndsWith('/v1/opamp', [StringComparison]::OrdinalIgnoreCase)) {
+        $base = $base.Substring(0, $base.Length - '/v1/opamp'.Length)
+    }
+    return "$base$AuthCheckPath"
+}
+
+# Ask the server to validate the enrollment token before anything is installed.
+# The supervisor does the same at startup, so a bad token fails here instead of
+# in a crash loop. The check also explains the two common URL mistakes: The
+# supervisor rejects a server certificate that the system does not trust, such
+# as a self-signed one. When a request fails with verification but succeeds
+# without it, the certificate is the problem, and the user needs
+# -SkipTlsVerify. When an http:// URL fails but the same host answers on
+# https://, the URL has the wrong scheme.
 function Test-Endpoint {
+    $isHttps = $Endpoint.StartsWith('https://', [StringComparison]::OrdinalIgnoreCase)
+    $isHttp = $Endpoint.StartsWith('http://', [StringComparison]::OrdinalIgnoreCase)
+    if (-not ($isHttps -or $isHttp)) {
+        # Not an HTTP URL. Leave it to the supervisor to reject it.
+        return
+    }
+
     Write-Step "Checking connection to $Endpoint"
-    if ($Endpoint.StartsWith('https://', [StringComparison]::OrdinalIgnoreCase)) {
+    $checkUrl = Get-AuthCheckUrl -EndpointUrl $Endpoint
+
+    if ($isHttps) {
         if ($SkipTlsVerify) {
             Write-Warning "TLS certificate verification is disabled for $Endpoint."
-            $probeError = Invoke-EndpointProbe -Uri $Endpoint -SkipCertificateCheck $true
-            if (-not $probeError) {
-                return
+            $probe = Invoke-EndpointProbe -Uri $checkUrl -SkipCertificateCheck $true
+            if ($probe.StatusCode -eq 0) {
+                throw "Cannot connect to ${Endpoint}: $($probe.Error)"
             }
         } else {
-            $probeError = Invoke-EndpointProbe -Uri $Endpoint -SkipCertificateCheck $false
-            if (-not $probeError) {
-                return
-            }
-            if (-not (Invoke-EndpointProbe -Uri $Endpoint -SkipCertificateCheck $true)) {
-                throw @"
+            $probe = Invoke-EndpointProbe -Uri $checkUrl -SkipCertificateCheck $false
+            if ($probe.StatusCode -eq 0) {
+                $insecureProbe = Invoke-EndpointProbe -Uri $checkUrl -SkipCertificateCheck $true
+                if ($insecureProbe.StatusCode -ne 0) {
+                    throw @"
 The TLS certificate of $Endpoint is not trusted by this system.
 If the Graylog server uses a self-signed certificate, run this script again
 with -SkipTlsVerify. The Collector then skips certificate verification for
 this server.
 "@
+                }
+                throw "Cannot connect to ${Endpoint}: $($probe.Error)"
             }
         }
-    } elseif ($Endpoint.StartsWith('http://', [StringComparison]::OrdinalIgnoreCase)) {
-        $probeError = Invoke-EndpointProbe -Uri $Endpoint -SkipCertificateCheck $false
-        if (-not $probeError) {
+    } else {
+        $probe = Invoke-EndpointProbe -Uri $checkUrl -SkipCertificateCheck $false
+        if ($probe.StatusCode -eq 0) {
+            $httpsEndpoint = 'https://' + $Endpoint.Substring('http://'.Length)
+            $httpsCheckUrl = 'https://' + $checkUrl.Substring('http://'.Length)
+            $httpsProbe = Invoke-EndpointProbe -Uri $httpsCheckUrl -SkipCertificateCheck $true
+            if ($httpsProbe.StatusCode -ne 0) {
+                throw "Cannot connect to $Endpoint, but the server answers on $httpsEndpoint. Run this script again with that URL."
+            }
+            throw "Cannot connect to ${Endpoint}: $($probe.Error)`nAlso tried ${httpsEndpoint}: $($httpsProbe.Error)"
+        }
+    }
+
+    switch ($probe.StatusCode) {
+        200 {
+            # The real endpoint answers with an empty body. Graylog serves its
+            # web interface for unknown paths, with the same status code.
+            if ($probe.ContentType -like 'text/html*') {
+                throw "$Endpoint points to the Graylog web interface, not to its API. Check the path of the URL. Usually the Graylog server URL has no path."
+            }
             return
         }
-        $httpsEndpoint = 'https://' + $Endpoint.Substring('http://'.Length)
-        $httpsError = Invoke-EndpointProbe -Uri $httpsEndpoint -SkipCertificateCheck $true
-        if (-not $httpsError) {
-            throw "Cannot connect to $Endpoint, but the server answers on $httpsEndpoint. Run this script again with that URL."
+        { $_ -in 401, 403 } {
+            throw "The Graylog server at $Endpoint rejected the enrollment token (HTTP $_). Check the token, or create a new one in Graylog."
         }
-        $probeError = "$probeError`nAlso tried ${httpsEndpoint}: $httpsError"
-    } else {
-        # Not an HTTP URL. Leave it to the supervisor to reject it.
-        return
+        default {
+            throw "Unexpected response HTTP $_ from $checkUrl. Is $Endpoint the Graylog server URL?"
+        }
     }
-    throw "Cannot connect to ${Endpoint}: $probeError"
 }
 
 # Download the release manifest and return the MSI entry. The manifest lists
@@ -292,18 +338,19 @@ function Get-MsiAsset {
     }
     $manifest = Get-Content -Path $manifestPath -Raw
 
-    $pattern = '^(?<digest>[0-9a-fA-F]{64})\s+(?<name>graylog-collector-(?<tag>\S+)\.msi)$'
+    $pattern = '^(?<digest>[0-9a-fA-F]{64})\s+(?<name>graylog-collector-\S+\.msi)$'
     $entry = $manifest -split "`r?`n" | Where-Object { $_ -match $pattern } | Select-Object -First 1
     if (-not $entry) {
         throw 'Release manifest has no Windows installer (.msi).'
     }
     $null = $entry -match $pattern
 
+    # The asset sits next to the manifest. That also works for "latest".
+    $baseUrl = $manifestUrl.Substring(0, $manifestUrl.LastIndexOf('/'))
     return [PSCustomObject]@{
-        Tag    = $Matches.tag
         Name   = $Matches.name
         Digest = $Matches.digest.ToLower()
-        Url    = "https://github.com/$GitHubRepo/releases/download/$($Matches.tag)/$($Matches.name)"
+        Url    = "$baseUrl/$($Matches.name)"
     }
 }
 
@@ -317,14 +364,16 @@ function Test-Checksum {
     }
 }
 
+# No installer log: Windows Installer writes the resolved registry values,
+# including the token, into it. To debug a failing installation, download the
+# MSI and run it by hand with msiexec /l*v.
 function Install-Msi {
-    param([string]$MsiPath, [string]$LogPath)
+    param([string]$MsiPath, [string]$MsiUrl)
 
     $arguments = @(
         '/i', "`"$MsiPath`"",
         '/qn',
         '/norestart',
-        '/l*v', "`"$LogPath`"",
         "ENROLLENDPOINT=`"$Endpoint`"",
         "ENROLLTOKEN=`"$Token`""
     )
@@ -332,17 +381,14 @@ function Install-Msi {
         $arguments += 'ENROLLINSECURETLS=true'
     }
 
-    # The log is kept only when the installation fails. Successful installs
-    # leave no log behind, because it contains the install parameters.
     $process = Start-Process -FilePath 'msiexec.exe' -ArgumentList $arguments -Wait -PassThru
     switch ($process.ExitCode) {
-        0 { Remove-Item -Path $LogPath -Force -ErrorAction SilentlyContinue; return }
+        0 { return }
         3010 {
-            Remove-Item -Path $LogPath -Force -ErrorAction SilentlyContinue
             Write-Warning 'Installation finished. A reboot is required to complete it.'
             return
         }
-        default { throw "msiexec failed with exit code $($process.ExitCode). See the log at $LogPath" }
+        default { throw "msiexec failed with exit code $($process.ExitCode). Download $MsiUrl and run it with msiexec /i <file> /l*v <log> to see details." }
     }
 }
 
@@ -365,7 +411,6 @@ try {
     $asset = Get-MsiAsset -RequestedVersion $Version -DownloadDir $tempDir
 
     $msiPath = Join-Path $tempDir $asset.Name
-    $logPath = Join-Path $env:TEMP "graylog-collector-install-$($asset.Tag).log"
 
     Write-Step "Downloading $($asset.Url)"
     Invoke-WebRequest -Uri $asset.Url -OutFile $msiPath -UseBasicParsing
@@ -373,10 +418,10 @@ try {
     Test-Checksum -Asset $asset -FilePath $msiPath
 
     Write-Step "Installing $($asset.Name)"
-    Install-Msi -MsiPath $msiPath -LogPath $logPath
+    Install-Msi -MsiPath $msiPath -MsiUrl $asset.Url
 } finally {
     Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Write-Step "Graylog Collector $($asset.Tag) installed"
+Write-Step "Graylog Collector installed ($($asset.Name))"
 Write-Host "Check the service status with: Get-Service $ServiceName"

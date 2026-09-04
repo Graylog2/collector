@@ -57,6 +57,12 @@
     <Property Id="ARPPRODUCTICON" Value="graylog.ico" />
     <Property Id="ARPHELPLINK" Value="https://docs.graylog.org/" />
     <Property Id="ARPURLINFOABOUT" Value="https://www.graylog.org/" />
+    <!-- The RegistrySearch entries below remember the values from the first
+         installation. Windows Installer runs AppSearch after reading the
+         command line, so on an upgrade or reinstall the remembered values win
+         over new command-line values. Accepted: the install scripts and the
+         UI are meant for the initial installation. To change the values,
+         uninstall first. -->
     <Property Id="ENROLLENDPOINT" Secure="yes">
       <RegistrySearch Id="ExistingEnrollEndpoint"
                       Root="HKLM"
@@ -145,7 +151,10 @@
               <RegistryValue Name="Environment" Type="multiString" KeyPath="yes">
                 <MultiStringValue Value="GLC_SERVER__AUTH__ENROLLMENT_ENDPOINT=[ENROLLENDPOINT]" />
                 <MultiStringValue Value="GLC_SERVER__AUTH__ENROLLMENT_TOKEN=[ENROLLTOKEN]" />
-                <!-- The supervisor reads an empty value as false. -->
+                <!-- Always written; the supervisor reads an empty value as
+                     false. Environment variables override supervisor.yaml, so
+                     on Windows the TLS setting comes from the installer, not
+                     from insecure_tls in the config file. Accepted. -->
                 <MultiStringValue Value="GLC_SERVER__AUTH__INSECURE_TLS=[ENROLLINSECURETLS]" />
               </RegistryValue>
             </RegistryKey>

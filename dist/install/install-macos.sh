@@ -27,6 +27,7 @@ set -eu
 
 GITHUB_REPO="Graylog2/collector"
 MANIFEST_NAME="SHA256SUMS"
+AUTH_CHECK_PATH="/v1/opamp-enroll-auth-check"
 CONFIG_DIR="/Library/Application Support/Graylog/Collector"
 CONFIG_FILE="$CONFIG_DIR/supervisor.yaml"
 CONFIG_MARKER="# Created by install-macos.sh"
@@ -109,8 +110,8 @@ parse_args() {
 	if [ -n "$TOKEN_FILE" ]; then
 		[ -z "$TOKEN" ] || fail "use either --token or --token-file, not both"
 		[ -r "$TOKEN_FILE" ] || fail "cannot read token file: $TOKEN_FILE"
-		# Command substitution strips the trailing newline.
-		TOKEN="$(cat "$TOKEN_FILE")"
+		# Take the first line and drop whitespace, including a Windows CR.
+		TOKEN="$(head -n 1 "$TOKEN_FILE" | tr -d '\r[:space:]')"
 	fi
 	[ -n "$TOKEN" ] || fail "--token or --token-file is required"
 }
@@ -149,68 +150,146 @@ download_file() {
 	fi
 }
 
-# Send one request to the given URL. Only the transport matters here, so any
-# HTTP response counts as success. Pass "insecure" as the second argument to
-# skip certificate verification. Error output goes to stdout so the caller
-# can capture it.
-probe_endpoint() {
+# Send one GET request with the enrollment token to the given URL. Prints the
+# HTTP status code and the content type, separated by a space, and returns 0
+# when the server answered. Otherwise prints the error text and returns 1. Pass "insecure" as the second argument to skip
+# certificate verification. The token travels in a config file, so it stays
+# out of the process list.
+probe_url() {
 	if [ "$DOWNLOADER" = "curl" ]; then
 		insecure_flag=""
 		[ "${2:-}" != "insecure" ] || insecure_flag="-k"
-		curl -sS --connect-timeout 10 --max-time 20 -o /dev/null ${insecure_flag:+"$insecure_flag"} "$1" 2>&1
+		# -w appends the status code and content type as the last line, "000"
+		# without a response. curl does not follow redirects without -L. See
+		# the wget note below.
+		output="$(curl -sS --connect-timeout 10 --max-time 20 -o /dev/null -w '\n%{http_code} %{content_type}' \
+			-K "$HEADER_FILE" ${insecure_flag:+"$insecure_flag"} "$1" 2>&1)" || true
+		result="$(printf '%s\n' "$output" | tail -n 1)"
+		if [ -n "$result" ] && [ "${result%% *}" != "000" ]; then
+			printf '%s' "$result"
+			return 0
+		fi
+		printf '%s\n' "$output" | sed '$d'
 	else
 		insecure_flag=""
 		[ "${2:-}" != "insecure" ] || insecure_flag="--no-check-certificate"
-		# Exit code 8 means the server answered with an HTTP error status.
-		wget -nv -t 1 -T 20 -O /dev/null ${insecure_flag:+"$insecure_flag"} "$1" 2>&1 || [ $? -eq 8 ]
+		# -S prints the response headers. The exit code varies with the status
+		# code, so the status is taken from the last HTTP header line. Redirects
+		# are not followed: a wrong sub path often redirects to the web
+		# interface, which would answer 200.
+		output="$(wget -nv -S -t 1 -T 20 -O /dev/null --max-redirect=0 --config="$HEADER_FILE" \
+			${insecure_flag:+"$insecure_flag"} "$1" 2>&1)" || true
+		status="$(printf '%s\n' "$output" | sed -n 's/^  HTTP\/[^ ]* \([0-9][0-9][0-9]\).*/\1/p' | tail -n 1)"
+		if [ -n "$status" ]; then
+			content_type="$(printf '%s\n' "$output" | sed -n 's/^  [Cc]ontent-[Tt]ype: *//p' | tail -n 1)"
+			printf '%s %s' "$status" "$content_type"
+			return 0
+		fi
+		printf '%s\n' "$output"
 	fi
+	return 1
 }
 
-# Make sure the enrollment endpoint is reachable before anything is installed,
-# and explain the two common mistakes: The supervisor rejects a server
-# certificate that the system does not trust, such as a self-signed one. When
-# a request fails with verification but succeeds without it, the certificate
-# is the problem, and the user needs --skip-tls-verify. When an http:// URL
-# fails but the same host answers on https://, the URL has the wrong scheme.
-# Known gap: a reverse proxy that answers plain HTTP on a TLS port with a
-# 400 status counts as reachable here.
+# The token goes into a config file instead of a --header argument. Arguments
+# show up in the process list for every local user, and --token-file exists to
+# keep the token out of there.
+write_header_file() {
+	HEADER_FILE="$tmp_dir/headers"
+	(
+		umask 077
+		if [ "$DOWNLOADER" = "curl" ]; then
+			printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" > "$HEADER_FILE"
+		else
+			printf 'header = Authorization: Bearer %s\n' "$TOKEN" > "$HEADER_FILE"
+		fi
+	)
+}
+
+# The server base URL is the endpoint without a trailing slash and without the
+# default OpAMP path, like the supervisor derives it.
+auth_check_url() {
+	base="${1%/}"
+	base="${base%/v1/opamp}"
+	printf '%s%s' "$base" "$AUTH_CHECK_PATH"
+}
+
+# Ask the server to validate the enrollment token before anything is installed.
+# The supervisor does the same at startup, so a bad token fails here instead of
+# in a crash loop. The check also explains the two common URL mistakes: The
+# supervisor rejects a server certificate that the system does not trust, such
+# as a self-signed one. When a request fails with verification but succeeds
+# without it, the certificate is the problem, and the user needs
+# --skip-tls-verify. When an http:// URL fails but the same host answers on
+# https://, the URL has the wrong scheme.
 check_endpoint() {
-	log "Checking connection to $ENDPOINT"
 	case "$ENDPOINT" in
-		https://*)
-			if [ -n "$SKIP_TLS_VERIFY" ]; then
-				echo "WARNING: TLS certificate verification is disabled for $ENDPOINT" >&2
-				probe_error="$(probe_endpoint "$ENDPOINT" insecure)" && return 0
-			else
-				probe_error="$(probe_endpoint "$ENDPOINT")" && return 0
-				if probe_endpoint "$ENDPOINT" insecure >/dev/null; then
-					fail "the TLS certificate of $ENDPOINT is not trusted by this system.
-       If the Graylog server uses a self-signed certificate, run this script
-       again with --skip-tls-verify. The Collector then skips certificate
-       verification for this server."
-				fi
-			fi
-			;;
-		http://*)
-			probe_error="$(probe_endpoint "$ENDPOINT")" && return 0
-			https_endpoint="https://${ENDPOINT#http://}"
-			if https_error="$(probe_endpoint "$https_endpoint" insecure)"; then
-				fail "cannot connect to $ENDPOINT, but the server answers on
-       $https_endpoint. Run this script again with that URL."
-			fi
-			probe_error="$probe_error
-       Also tried $https_endpoint: $https_error"
-			;;
+		https://*|http://*) ;;
 		*)
 			# Not an HTTP URL. Leave it to the supervisor to reject it.
 			return 0
 			;;
 	esac
-	fail "cannot connect to $ENDPOINT: $probe_error"
+
+	log "Checking connection to $ENDPOINT"
+	check_url="$(auth_check_url "$ENDPOINT")"
+	write_header_file
+
+	case "$ENDPOINT" in
+		https://*)
+			if [ -n "$SKIP_TLS_VERIFY" ]; then
+				echo "WARNING: TLS certificate verification is disabled for $ENDPOINT" >&2
+				status="$(probe_url "$check_url" insecure)" || fail "cannot connect to $ENDPOINT: $status"
+			elif ! status="$(probe_url "$check_url")"; then
+				probe_error="$status"
+				if probe_url "$check_url" insecure >/dev/null; then
+					fail "the TLS certificate of $ENDPOINT is not trusted by this system.
+       If the Graylog server uses a self-signed certificate, run this script
+       again with --skip-tls-verify. The Collector then skips certificate
+       verification for this server."
+				fi
+				fail "cannot connect to $ENDPOINT: $probe_error"
+			fi
+			;;
+		http://*)
+			if ! status="$(probe_url "$check_url")"; then
+				probe_error="$status"
+				https_endpoint="https://${ENDPOINT#http://}"
+				if https_error="$(probe_url "https://${check_url#http://}" insecure)"; then
+					fail "cannot connect to $ENDPOINT, but the server answers on
+       $https_endpoint. Run this script again with that URL."
+				fi
+				fail "cannot connect to $ENDPOINT: $probe_error
+       Also tried $https_endpoint: $https_error"
+			fi
+			;;
+	esac
+
+	content_type="${status#* }"
+	status="${status%% *}"
+	case "$status" in
+		200)
+			# The real endpoint answers with an empty body. Graylog serves its
+			# web interface for unknown paths, with the same status code.
+			case "$content_type" in
+				text/html*)
+					fail "$ENDPOINT points to the Graylog web interface, not to its API.
+       Check the path of the URL. Usually the Graylog server URL has no path."
+					;;
+			esac
+			;;
+		401|403)
+			fail "the Graylog server at $ENDPOINT rejected the enrollment token (HTTP $status).
+       Check the token, or create a new one in Graylog."
+			;;
+		*)
+			fail "unexpected response HTTP $status from $check_url.
+       Is $ENDPOINT the Graylog server URL?"
+			;;
+	esac
 }
 
-# Download the release manifest and set RELEASE_TAG, ASSET_URL, ASSET_NAME,
-# and ASSET_DIGEST for the universal macOS package. The manifest lists one
+# Download the release manifest and set ASSET_URL, ASSET_NAME, and
+# ASSET_DIGEST for the universal macOS package. The manifest lists one
 # "<sha256>  <file name>" line per release artifact.
 resolve_release() {
 	if [ -n "$VERSION" ]; then
@@ -228,8 +307,8 @@ resolve_release() {
 	ASSET_DIGEST="${entry%% *}"
 	ASSET_NAME="${entry##* }"
 
-	RELEASE_TAG="$(printf '%s' "$ASSET_NAME" | sed 's/^graylog-collector-\(.*\)-darwin-universal\.pkg$/\1/')"
-	ASSET_URL="https://github.com/$GITHUB_REPO/releases/download/$RELEASE_TAG/$ASSET_NAME"
+	# The asset sits next to the manifest. That also works for "latest".
+	ASSET_URL="${manifest_url%/*}/$ASSET_NAME"
 }
 
 verify_checksum() {
@@ -320,11 +399,12 @@ main() {
 	warn_existing_enrollment
 	check_existing_config
 	detect_downloader
-	check_endpoint
-	resolve_release
 
 	tmp_dir="$(mktemp -d)"
 	trap 'rm -rf "$tmp_dir"' EXIT
+
+	check_endpoint
+	resolve_release
 
 	package_file="$tmp_dir/$ASSET_NAME"
 	log "Downloading $ASSET_URL"
@@ -334,7 +414,7 @@ main() {
 	write_enrollment_config
 	install_package "$package_file"
 
-	log "Graylog Collector $RELEASE_TAG installed"
+	log "Graylog Collector installed ($ASSET_NAME)"
 	echo "Check the service status with: sudo launchctl print system/$SERVICE_LABEL"
 }
 
