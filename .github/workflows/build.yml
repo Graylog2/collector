@@ -99,6 +99,10 @@ jobs:
         if: "matrix.os == 'macos'"
         run: "go tool task package:macos:pkg"
 
+      - name: "Copy install scripts"
+        if: "matrix.os == 'linux'"
+        run: "go tool task package:install:scripts"
+
       - name: "Upload build artifacts to S3"
         # Dependabot doesn't have access to the S3 secrets.
         if: "github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]')"
@@ -122,6 +126,11 @@ jobs:
           esac
 
           for file in $(find . -maxdepth 1 -name 'graylog-collector*' -type f | grep "${grep_args[@]}" | sort -V); do
+            aws s3 cp --no-progress "$file" "s3://${AWS_S3_BUCKET}/collector/${SNAPSHOT_PATH}/"
+            printf -- "- https://downloads.graylog.org/snapshots/collector/%s/%s\n" "$SNAPSHOT_PATH" "$(basename "$file")" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          for file in $(find . -maxdepth 1 -name 'install-*' -type f | grep -e '\.sh$' -e '\.ps1$' | sort -V); do
             aws s3 cp --no-progress "$file" "s3://${AWS_S3_BUCKET}/collector/${SNAPSHOT_PATH}/"
             printf -- "- https://downloads.graylog.org/snapshots/collector/%s/%s\n" "$SNAPSHOT_PATH" "$(basename "$file")" >> "$GITHUB_STEP_SUMMARY"
           done

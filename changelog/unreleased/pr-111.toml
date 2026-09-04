@@ -1,0 +1,4 @@
+type = "a"
+message = "Add install scripts for Linux, macOS, and Windows."
+
+pulls = ["111"]
