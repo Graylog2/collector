@@ -1,0 +1,4 @@
+type = "a"
+message = "Add Graylog branding to the Windows installer."
+
+pulls = ["112"]
