@@ -158,6 +158,13 @@ tasks:
         silent: true
       - nfpm package -f {{.ROOT_DIR}}/dist/linux/nfpm.yaml -p {{.NFPM_PACKAGER | lower}} -t {{.ROOT_DIR}}/target/
 
+  package:install:scripts:
+    desc: "Copy script"
+    platforms: [linux]
+    cmds:
+      - cmd: mkdir -p "{{.ROOT_DIR}}/target"
+      - cmd: cp "{{.ROOT_DIR}}/dist/install/install-"* "{{.ROOT_DIR}}/target"
+
   package:windows:msi:
     desc: 'Build Windows MSI installer (Windows only; requires dotnet SDK + WiX 7)'
     platforms: [windows]
