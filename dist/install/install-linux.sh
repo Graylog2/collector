@@ -115,8 +115,6 @@ check_root() {
 	[ "$(id -u)" -eq 0 ] || fail "this script must run as root (use sudo)"
 }
 
-# The Collector is enrolled when a signing key and certificate exist. It then
-# keeps using them and ignores the enrollment token, so tell the user.
 warn_existing_enrollment() {
 	[ -f "$KEYS_DIR/signing.key" ] && [ -f "$KEYS_DIR/signing.crt" ] || return 0
 	cat >&2 <<EOF
@@ -133,8 +131,6 @@ WARNING: The Collector is already enrolled. Credentials exist in "$KEYS_DIR".
 EOF
 }
 
-# Select the download tool. download_file writes to the given file path;
-# fetch_stdout writes the response body to stdout.
 detect_downloader() {
 	if command -v curl >/dev/null 2>&1; then
 		DOWNLOADER="curl"
@@ -298,7 +294,7 @@ resolve_release() {
 }
 
 verify_checksum() {
-	log "Verifying sha256 checksum"
+	log "Verifying SHA-256 checksum"
 	if command -v sha256sum >/dev/null 2>&1; then
 		actual="$(sha256sum "$1" | cut -d ' ' -f 1)"
 	else

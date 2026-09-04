@@ -123,8 +123,6 @@ check_macos() {
 	[ "$(uname -s)" = "Darwin" ] || fail "this script only supports macOS"
 }
 
-# Select the download tool. download_file writes to the given file path;
-# fetch_stdout writes the response body to stdout.
 detect_downloader() {
 	if command -v curl >/dev/null 2>&1; then
 		DOWNLOADER="curl"
@@ -235,7 +233,7 @@ resolve_release() {
 }
 
 verify_checksum() {
-	log "Verifying sha256 checksum"
+	log "Verifying SHA-256 checksum"
 	actual="$(shasum -a 256 "$1" | cut -d ' ' -f 1)"
 	[ "$actual" = "$ASSET_DIGEST" ] || fail "checksum mismatch for $ASSET_NAME (expected $ASSET_DIGEST, got $actual)"
 }

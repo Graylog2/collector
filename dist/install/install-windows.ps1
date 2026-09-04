@@ -120,8 +120,6 @@ function Assert-Administrator {
     }
 }
 
-# The Collector is enrolled when a signing key and certificate exist. It then
-# keeps using them and ignores the enrollment token, so tell the user.
 function Show-ExistingEnrollmentWarning {
     $keyExists = Test-Path -Path (Join-Path $KeysDir 'signing.key') -PathType Leaf
     $certExists = Test-Path -Path (Join-Path $KeysDir 'signing.crt') -PathType Leaf
@@ -312,7 +310,7 @@ function Get-MsiAsset {
 function Test-Checksum {
     param($Asset, [string]$FilePath)
 
-    Write-Step 'Verifying sha256 checksum'
+    Write-Step 'Verifying SHA-256 checksum'
     $actual = (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash.ToLower()
     if ($actual -ne $Asset.Digest) {
         throw "Checksum mismatch for $($Asset.Name) (expected $($Asset.Digest), got $actual)."
