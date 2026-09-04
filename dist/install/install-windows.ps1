@@ -22,6 +22,10 @@
 .PARAMETER Version
     Collector version to install. Defaults to the latest release.
 
+.PARAMETER SkipTlsVerify
+    Do not verify the TLS certificate of the Graylog server. Use this when
+    the server has a self-signed certificate.
+
 .PARAMETER Help
     Show this help. The script also accepts --help, /? and /help.
 
@@ -33,6 +37,9 @@
 
 .EXAMPLE
     .\install-windows.ps1 -Endpoint https://graylog.example.com -TokenFile C:\path\to\token.txt
+
+.EXAMPLE
+    .\install-windows.ps1 -Endpoint https://graylog.example.com -Token eyJhb... -SkipTlsVerify
 
 .EXAMPLE
     .\install-windows.ps1 --help
@@ -49,6 +56,8 @@ param(
     [string]$TokenFile,
 
     [string]$Version,
+
+    [switch]$SkipTlsVerify,
 
     [switch]$Help,
 
@@ -136,6 +145,132 @@ function Enable-Tls12 {
     [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 }
 
+# A certificate validation callback that accepts every certificate, for
+# Windows PowerShell 5.1. It must be compiled code: .NET runs the callback on a
+# thread without a PowerShell runspace, so a script block fails there with
+# "An unexpected error occurred on a send".
+function Get-TrustAllCertificatesCallback {
+    if (-not ('GraylogCollectorInstall.TrustAllCertificates' -as [type])) {
+        Add-Type -TypeDefinition @"
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
+
+namespace GraylogCollectorInstall
+{
+    public static class TrustAllCertificates
+    {
+        public static bool Validate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors errors)
+        {
+            return true;
+        }
+
+        public static RemoteCertificateValidationCallback Callback
+        {
+            get { return new RemoteCertificateValidationCallback(Validate); }
+        }
+    }
+}
+"@
+    }
+    return [GraylogCollectorInstall.TrustAllCertificates]::Callback
+}
+
+# Send one request to the given URL. Only the transport matters here, so any
+# HTTP response counts as success. Returns $null on success and the error
+# message otherwise.
+function Invoke-EndpointProbe {
+    param([string]$Uri, [bool]$SkipCertificateCheck)
+
+    # DisableKeepAlive keeps the connection out of the process-wide pool. A
+    # pooled connection that was opened without verification would otherwise
+    # serve a later request with verification, and skip the handshake.
+    $arguments = @{
+        Uri              = $Uri
+        Method           = 'Get'
+        UseBasicParsing  = $true
+        TimeoutSec       = 20
+        DisableKeepAlive = $true
+    }
+    # Windows PowerShell 5.1 has no -SkipCertificateCheck. It needs the
+    # process-wide callback, which is restored afterwards.
+    $callbackChanged = $false
+    $previousCallback = $null
+    if ($SkipCertificateCheck) {
+        if ($PSVersionTable.PSVersion.Major -ge 6) {
+            $arguments.SkipCertificateCheck = $true
+        } else {
+            $previousCallback = [Net.ServicePointManager]::ServerCertificateValidationCallback
+            [Net.ServicePointManager]::ServerCertificateValidationCallback = Get-TrustAllCertificatesCallback
+            $callbackChanged = $true
+        }
+    }
+
+    try {
+        Invoke-WebRequest @arguments | Out-Null
+        return $null
+    } catch {
+        # An HTTP error status still proves that the connection works.
+        $response = $_.Exception.PSObject.Properties['Response']
+        if ($response -and $response.Value) {
+            return $null
+        }
+        return $_.Exception.Message
+    } finally {
+        if ($callbackChanged) {
+            [Net.ServicePointManager]::ServerCertificateValidationCallback = $previousCallback
+        }
+    }
+}
+
+# Make sure the enrollment endpoint is reachable before anything is installed,
+# and explain the two common mistakes: The supervisor rejects a server
+# certificate that the system does not trust, such as a self-signed one. When
+# a request fails with verification but succeeds without it, the certificate
+# is the problem, and the user needs -SkipTlsVerify. When an http:// URL
+# fails but the same host answers on https://, the URL has the wrong scheme.
+# Known gap: a reverse proxy that answers plain HTTP on a TLS port with a
+# 400 status counts as reachable here.
+function Test-Endpoint {
+    Write-Step "Checking connection to $Endpoint"
+    if ($Endpoint.StartsWith('https://', [StringComparison]::OrdinalIgnoreCase)) {
+        if ($SkipTlsVerify) {
+            Write-Warning "TLS certificate verification is disabled for $Endpoint."
+            $probeError = Invoke-EndpointProbe -Uri $Endpoint -SkipCertificateCheck $true
+            if (-not $probeError) {
+                return
+            }
+        } else {
+            $probeError = Invoke-EndpointProbe -Uri $Endpoint -SkipCertificateCheck $false
+            if (-not $probeError) {
+                return
+            }
+            if (-not (Invoke-EndpointProbe -Uri $Endpoint -SkipCertificateCheck $true)) {
+                throw @"
+The TLS certificate of $Endpoint is not trusted by this system.
+If the Graylog server uses a self-signed certificate, run this script again
+with -SkipTlsVerify. The Collector then skips certificate verification for
+this server.
+"@
+            }
+        }
+    } elseif ($Endpoint.StartsWith('http://', [StringComparison]::OrdinalIgnoreCase)) {
+        $probeError = Invoke-EndpointProbe -Uri $Endpoint -SkipCertificateCheck $false
+        if (-not $probeError) {
+            return
+        }
+        $httpsEndpoint = 'https://' + $Endpoint.Substring('http://'.Length)
+        $httpsError = Invoke-EndpointProbe -Uri $httpsEndpoint -SkipCertificateCheck $true
+        if (-not $httpsError) {
+            throw "Cannot connect to $Endpoint, but the server answers on $httpsEndpoint. Run this script again with that URL."
+        }
+        $probeError = "$probeError`nAlso tried ${httpsEndpoint}: $httpsError"
+    } else {
+        # Not an HTTP URL. Leave it to the supervisor to reject it.
+        return
+    }
+    throw "Cannot connect to ${Endpoint}: $probeError"
+}
+
 # Download the release manifest and return the MSI entry. The manifest lists
 # one "<sha256>  <file name>" line per release artifact.
 function Get-MsiAsset {
@@ -195,6 +330,9 @@ function Install-Msi {
         "ENROLLENDPOINT=`"$Endpoint`"",
         "ENROLLTOKEN=`"$Token`""
     )
+    if ($SkipTlsVerify) {
+        $arguments += 'ENROLLINSECURETLS=true'
+    }
 
     # The log is kept only when the installation fails. Successful installs
     # leave no log behind, because it contains the install parameters.
@@ -214,6 +352,7 @@ Assert-Arguments
 Assert-Administrator
 Show-ExistingEnrollmentWarning
 Enable-Tls12
+Test-Endpoint
 
 if ($Version) {
     $Version = $Version.TrimStart('v')

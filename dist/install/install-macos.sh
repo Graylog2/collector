@@ -8,8 +8,8 @@
 # the launchd service.
 #
 # Usage:
-#   sudo sh install-macos.sh --endpoint <URL> --token <TOKEN> [--version <VERSION>]
-#   sudo sh install-macos.sh --endpoint <URL> --token-file <PATH> [--version <VERSION>]
+#   sudo sh install-macos.sh --endpoint <URL> --token <TOKEN> [OPTIONS]
+#   sudo sh install-macos.sh --endpoint <URL> --token-file <PATH> [OPTIONS]
 #
 # Options:
 #   -e, --endpoint <URL>    Enrollment endpoint, usually the Graylog server URL
@@ -17,6 +17,8 @@
 #   --token-file <PATH>     Read the enrollment token from a file instead. This keeps
 #                           the token out of the shell history and process list.
 #   -v, --version <VERSION> Collector version to install (default: latest release)
+#   --skip-tls-verify       Do not verify the TLS certificate of the Graylog server.
+#                           Use this when the server has a self-signed certificate.
 #   -h, --help              Show this help
 #
 # Requirements: root privileges, curl or wget.
@@ -37,11 +39,12 @@ ENDPOINT=""
 TOKEN=""
 TOKEN_FILE=""
 VERSION=""
+SKIP_TLS_VERIFY=""
 
 usage() {
 	cat <<EOF
-Usage: sudo sh install-macos.sh --endpoint <URL> --token <TOKEN> [--version <VERSION>]
-       sudo sh install-macos.sh --endpoint <URL> --token-file <PATH> [--version <VERSION>]
+Usage: sudo sh install-macos.sh --endpoint <URL> --token <TOKEN> [OPTIONS]
+       sudo sh install-macos.sh --endpoint <URL> --token-file <PATH> [OPTIONS]
 
 Options:
   -e, --endpoint <URL>    Enrollment endpoint, usually the Graylog server URL
@@ -49,6 +52,8 @@ Options:
   --token-file <PATH>     Read the enrollment token from a file instead. This keeps
                           the token out of the shell history and process list.
   -v, --version <VERSION> Collector version to install (default: latest release)
+  --skip-tls-verify       Do not verify the TLS certificate of the Graylog server.
+                          Use this when the server has a self-signed certificate.
   -h, --help              Show this help
 EOF
 }
@@ -84,6 +89,10 @@ parse_args() {
 				[ $# -ge 2 ] || fail "$1 requires a value"
 				VERSION="${2#v}"
 				shift 2
+				;;
+			--skip-tls-verify)
+				SKIP_TLS_VERIFY="1"
+				shift
 				;;
 			-h|--help)
 				usage
@@ -140,6 +149,66 @@ download_file() {
 	else
 		wget -q --show-progress -O "$2" "$1"
 	fi
+}
+
+# Send one request to the given URL. Only the transport matters here, so any
+# HTTP response counts as success. Pass "insecure" as the second argument to
+# skip certificate verification. Error output goes to stdout so the caller
+# can capture it.
+probe_endpoint() {
+	if [ "$DOWNLOADER" = "curl" ]; then
+		insecure_flag=""
+		[ "${2:-}" != "insecure" ] || insecure_flag="-k"
+		curl -sS --connect-timeout 10 --max-time 20 -o /dev/null ${insecure_flag:+"$insecure_flag"} "$1" 2>&1
+	else
+		insecure_flag=""
+		[ "${2:-}" != "insecure" ] || insecure_flag="--no-check-certificate"
+		# Exit code 8 means the server answered with an HTTP error status.
+		wget -nv -t 1 -T 20 -O /dev/null ${insecure_flag:+"$insecure_flag"} "$1" 2>&1 || [ $? -eq 8 ]
+	fi
+}
+
+# Make sure the enrollment endpoint is reachable before anything is installed,
+# and explain the two common mistakes: The supervisor rejects a server
+# certificate that the system does not trust, such as a self-signed one. When
+# a request fails with verification but succeeds without it, the certificate
+# is the problem, and the user needs --skip-tls-verify. When an http:// URL
+# fails but the same host answers on https://, the URL has the wrong scheme.
+# Known gap: a reverse proxy that answers plain HTTP on a TLS port with a
+# 400 status counts as reachable here.
+check_endpoint() {
+	log "Checking connection to $ENDPOINT"
+	case "$ENDPOINT" in
+		https://*)
+			if [ -n "$SKIP_TLS_VERIFY" ]; then
+				echo "WARNING: TLS certificate verification is disabled for $ENDPOINT" >&2
+				probe_error="$(probe_endpoint "$ENDPOINT" insecure)" && return 0
+			else
+				probe_error="$(probe_endpoint "$ENDPOINT")" && return 0
+				if probe_endpoint "$ENDPOINT" insecure >/dev/null; then
+					fail "the TLS certificate of $ENDPOINT is not trusted by this system.
+       If the Graylog server uses a self-signed certificate, run this script
+       again with --skip-tls-verify. The Collector then skips certificate
+       verification for this server."
+				fi
+			fi
+			;;
+		http://*)
+			probe_error="$(probe_endpoint "$ENDPOINT")" && return 0
+			https_endpoint="https://${ENDPOINT#http://}"
+			if https_error="$(probe_endpoint "$https_endpoint" insecure)"; then
+				fail "cannot connect to $ENDPOINT, but the server answers on
+       $https_endpoint. Run this script again with that URL."
+			fi
+			probe_error="$probe_error
+       Also tried $https_endpoint: $https_error"
+			;;
+		*)
+			# Not an HTTP URL. Leave it to the supervisor to reject it.
+			return 0
+			;;
+	esac
+	fail "cannot connect to $ENDPOINT: $probe_error"
 }
 
 # Download the release manifest and set RELEASE_TAG, ASSET_URL, ASSET_NAME,
@@ -234,6 +303,9 @@ server:
     enrollment_endpoint: "$ENDPOINT"
     enrollment_token: "$TOKEN"
 EOF
+	if [ -n "$SKIP_TLS_VERIFY" ]; then
+		echo "    insecure_tls: true" >> "$CONFIG_FILE"
+	fi
 	chown root:wheel "$CONFIG_FILE"
 	chmod 0600 "$CONFIG_FILE"
 }
@@ -250,6 +322,7 @@ main() {
 	warn_existing_enrollment
 	check_existing_config
 	detect_downloader
+	check_endpoint
 	resolve_release
 
 	tmp_dir="$(mktemp -d)"

@@ -74,6 +74,17 @@
                       Type="raw" />
     </Property>
 
+    <!-- Unset when the server certificate is verified. The install script and
+         the UI checkbox set it to "true". No default value: a Windows
+         Installer checkbox shows any non-empty value as checked. -->
+    <Property Id="ENROLLINSECURETLS" Secure="yes">
+      <RegistrySearch Id="ExistingEnrollInsecureTls"
+                      Root="HKLM"
+                      Key="SOFTWARE\Graylog\Collector"
+                      Name="ENROLLINSECURETLS"
+                      Type="raw" />
+    </Property>
+
     <Property Id="REMOVE_DATA" Secure="yes" Value="0" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
@@ -125,6 +136,7 @@
             <RegistryKey Root="HKLM" Key="SOFTWARE\Graylog\Collector">
               <RegistryValue Name="ENROLLENDPOINT" Type="string" Value="[ENROLLENDPOINT]" KeyPath="yes" />
               <RegistryValue Name="ENROLLTOKEN"    Type="string" Value="[ENROLLTOKEN]" />
+              <RegistryValue Name="ENROLLINSECURETLS" Type="string" Value="[ENROLLINSECURETLS]" />
             </RegistryKey>
           </Component>
 
@@ -133,6 +145,8 @@
               <RegistryValue Name="Environment" Type="multiString" KeyPath="yes">
                 <MultiStringValue Value="GLC_SERVER__AUTH__ENROLLMENT_ENDPOINT=[ENROLLENDPOINT]" />
                 <MultiStringValue Value="GLC_SERVER__AUTH__ENROLLMENT_TOKEN=[ENROLLTOKEN]" />
+                <!-- The supervisor reads an empty value as false. -->
+                <MultiStringValue Value="GLC_SERVER__AUTH__INSECURE_TLS=[ENROLLINSECURETLS]" />
               </RegistryValue>
             </RegistryKey>
           </Component>
