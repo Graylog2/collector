@@ -15,7 +15,7 @@
 //
 // SPDX-License-Identifier: SSPL-1.0
 
-//go:build unix
+//go:build linux
 
 package config
 

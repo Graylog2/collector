@@ -63,7 +63,7 @@ func (s *Supervisor) initAuth(ctx context.Context) error {
 	return nil
 }
 
-func toHTTPHeaders(headers map[string]string) http.Header {
+func ToHTTPHeaders(headers map[string]string) http.Header {
 	h := make(http.Header)
 	for k, v := range headers {
 		h.Set(k, v)
@@ -76,7 +76,7 @@ func toHTTPHeaders(headers map[string]string) http.Header {
 // After enrollment, a HeaderFunc is returned that generates a fresh JWT for each request,
 // ensuring the token doesn't expire during long-running connections.
 func (s *Supervisor) buildAuthHeaders(settings connection.Settings) (http.Header, func(http.Header) http.Header) {
-	headers := toHTTPHeaders(settings.Headers)
+	headers := ToHTTPHeaders(settings.Headers)
 
 	// If we're not enrolled yet, use the enrollment JWT as a static header.
 	if !s.authManager.IsEnrolled() {

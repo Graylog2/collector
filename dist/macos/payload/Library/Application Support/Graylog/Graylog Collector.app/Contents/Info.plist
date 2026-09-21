@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>CFBundleIdentifier</key>
+    <string>org.graylog.collector</string>
+
+    <key>CFBundleName</key>
+    <string>Graylog Collector</string>
+
+    <key>CFBundleDisplayName</key>
+    <string>Graylog Collector</string>
+
+    <key>CFBundleExecutable</key>
+    <string>graylog-collector</string>
+
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+
+    <!-- Set to the real version by PlistBuddy in package:macos:pkg:prepare -->
+    <key>CFBundleShortVersionString</key>
+    <string>0.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>0.0.0</string>
+
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+
+    <!-- The collector is a launchd daemon; keep the bundle out of the Dock
+         if a user opens it from Finder. -->
+    <key>LSUIElement</key>
+    <true/>
+
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright Graylog, Inc.</string>
+  </dict>
+</plist>

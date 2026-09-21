@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+LABEL="org.graylog.collector"
+PLIST="/Library/LaunchDaemons/${LABEL}.plist"
+LOG_DIR="/Library/Logs/Graylog/Collector"
+
+# Log this script's output so failed installs can be debugged on the target
+# machine. (The installer itself only keeps script output in the noisy
+# /var/log/install.log.)
+mkdir -p "$LOG_DIR"
+exec > "$LOG_DIR/preinstall.log" 2>&1
+
+echo "# Preinstall started: $(date)"
+
+launchctl bootout system "$PLIST" 2>/dev/null || true
+
+echo "# Preinstall finished: $(date)"
+exit 0

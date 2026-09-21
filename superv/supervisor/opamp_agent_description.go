@@ -33,19 +33,26 @@ import (
 
 // createAgentDescription creates the initial agent description for OpAMP.
 func (s *Supervisor) createAgentDescription() *protobufs.AgentDescription {
+	return NewAgentDescription(s.logger, s.instanceUID, s.collectorVersion)
+}
+
+// NewAgentDescription creates the agent description for OpAMP. The
+// collectorVersion may be empty when the collector version has not been
+// discovered (e.g. during standalone enrollment).
+func NewAgentDescription(logger *zap.Logger, instanceUID, collectorVersion string) *protobufs.AgentDescription {
 	hostname, _ := os.Hostname()
 
 	return &protobufs.AgentDescription{
 		IdentifyingAttributes: []*protobufs.KeyValue{
 			attributeStringKv(semconv.ServiceNameKey, ServiceName),
-			attributeStringKv(semconv.ServiceInstanceIDKey, s.instanceUID),
+			attributeStringKv(semconv.ServiceInstanceIDKey, instanceUID),
 		},
-		NonIdentifyingAttributes: s.nonIdentifyingAttributes(hostname),
+		NonIdentifyingAttributes: nonIdentifyingAttributes(logger, hostname, collectorVersion),
 	}
 }
 
 // nonIdentifyingAttributes builds the list of non-identifying attributes for the agent description.
-func (s *Supervisor) nonIdentifyingAttributes(hostname string) []*protobufs.KeyValue {
+func nonIdentifyingAttributes(logger *zap.Logger, hostname, collectorVersion string) []*protobufs.KeyValue {
 	attrs := []*protobufs.KeyValue{
 		attributeStringKv(semconv.HostArchKey, runtime.GOARCH),
 		attributeStringKv(semconv.HostNameKey, hostname),
@@ -56,11 +63,11 @@ func (s *Supervisor) nonIdentifyingAttributes(hostname string) []*protobufs.KeyV
 	if description, err := getOSDescription(runtime.GOOS, sysinfo.GetPlatformInfo, sysinfo.GetOSRelease); err == nil {
 		attrs = append(attrs, attributeStringKv(semconv.OSDescriptionKey, description))
 	} else {
-		s.logger.Warn("Failed to determine the OS description", zap.Error(err))
+		logger.Warn("Failed to determine the OS description", zap.Error(err))
 	}
 
-	if s.collectorVersion != "" {
-		attrs = append(attrs, stringKv("collector.version", s.collectorVersion))
+	if collectorVersion != "" {
+		attrs = append(attrs, stringKv("collector.version", collectorVersion))
 	}
 
 	return attrs

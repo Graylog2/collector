@@ -57,6 +57,12 @@
     <Property Id="ARPPRODUCTICON" Value="graylog.ico" />
     <Property Id="ARPHELPLINK" Value="https://docs.graylog.org/" />
     <Property Id="ARPURLINFOABOUT" Value="https://www.graylog.org/" />
+    <!-- The RegistrySearch entries below remember the values from the first
+         installation. Windows Installer runs AppSearch after reading the
+         command line, so on an upgrade or reinstall the remembered values win
+         over new command-line values. Accepted: the install scripts and the
+         UI are meant for the initial installation. To change the values,
+         uninstall first. -->
     <Property Id="ENROLLENDPOINT" Secure="yes">
       <RegistrySearch Id="ExistingEnrollEndpoint"
                       Root="HKLM"
@@ -65,11 +71,23 @@
                       Type="raw" />
     </Property>
 
-    <Property Id="ENROLLTOKEN" Secure="yes">
+    <!-- Hidden masks the token in Windows Installer logs (e.g. msiexec /l*v). -->
+    <Property Id="ENROLLTOKEN" Secure="yes" Hidden="yes">
       <RegistrySearch Id="ExistingEnrollToken"
                       Root="HKLM"
                       Key="SOFTWARE\Graylog\Collector"
                       Name="ENROLLTOKEN"
+                      Type="raw" />
+    </Property>
+
+    <!-- Unset when the server certificate is verified. The install script and
+         the UI checkbox set it to "true". No default value: a Windows
+         Installer checkbox shows any non-empty value as checked. -->
+    <Property Id="ENROLLINSECURETLS" Secure="yes">
+      <RegistrySearch Id="ExistingEnrollInsecureTls"
+                      Root="HKLM"
+                      Key="SOFTWARE\Graylog\Collector"
+                      Name="ENROLLINSECURETLS"
                       Type="raw" />
     </Property>
 
@@ -124,6 +142,7 @@
             <RegistryKey Root="HKLM" Key="SOFTWARE\Graylog\Collector">
               <RegistryValue Name="ENROLLENDPOINT" Type="string" Value="[ENROLLENDPOINT]" KeyPath="yes" />
               <RegistryValue Name="ENROLLTOKEN"    Type="string" Value="[ENROLLTOKEN]" />
+              <RegistryValue Name="ENROLLINSECURETLS" Type="string" Value="[ENROLLINSECURETLS]" />
             </RegistryKey>
           </Component>
 
@@ -132,6 +151,11 @@
               <RegistryValue Name="Environment" Type="multiString" KeyPath="yes">
                 <MultiStringValue Value="GLC_SERVER__AUTH__ENROLLMENT_ENDPOINT=[ENROLLENDPOINT]" />
                 <MultiStringValue Value="GLC_SERVER__AUTH__ENROLLMENT_TOKEN=[ENROLLTOKEN]" />
+                <!-- Always written; the supervisor reads an empty value as
+                     false. Environment variables override supervisor.yaml, so
+                     on Windows the TLS setting comes from the installer, not
+                     from insecure_tls in the config file. Accepted. -->
+                <MultiStringValue Value="GLC_SERVER__AUTH__INSECURE_TLS=[ENROLLINSECURETLS]" />
               </RegistryValue>
             </RegistryKey>
           </Component>

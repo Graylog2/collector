@@ -246,6 +246,7 @@ type AgentLoggingConfig struct {
 }
 
 var unixDataPathPrefix = "/var/lib/graylog-collector"
+var darwinDataPathPrefix = "/Library/Application Support/Graylog/Collector"
 var WindowsDataPathPrefix = filepath.Join(`C:\`, "ProgramData", "Graylog", "Collector")
 
 type platformName string
@@ -286,7 +287,7 @@ func DefaultConfig() Config {
 			// TODO: Branding
 			Dir: platformDefaultValue(map[platformName]string{
 				linux:   filepath.Join(unixDataPathPrefix, "keys"),
-				darwin:  filepath.Join(unixDataPathPrefix, "keys"),
+				darwin:  filepath.Join(darwinDataPathPrefix, "keys"),
 				windows: filepath.Join(WindowsDataPathPrefix, "keys"),
 			}),
 			Encrypted: false,
@@ -303,7 +304,7 @@ func DefaultConfig() Config {
 				Level: "info",
 				File: platformDefaultValue(map[platformName]string{
 					linux:   filepath.Join(unixDataPathPrefix, "logs", "agent.log"),
-					darwin:  filepath.Join(unixDataPathPrefix, "logs", "agent.log"),
+					darwin:  filepath.Join(darwinDataPathPrefix, "logs", "agent.log"),
 					windows: filepath.Join(WindowsDataPathPrefix, "logs", "agent.log"),
 				}),
 				FileRotation: LogRotationConfig{
@@ -315,7 +316,7 @@ func DefaultConfig() Config {
 			// TODO: Branding
 			StorageDir: platformDefaultValue(map[platformName]string{
 				linux:   filepath.Join(unixDataPathPrefix, "storage"),
-				darwin:  filepath.Join(unixDataPathPrefix, "storage"),
+				darwin:  filepath.Join(darwinDataPathPrefix, "storage"),
 				windows: filepath.Join(WindowsDataPathPrefix, "storage"),
 			}),
 			Config: AgentConfigMerge{
@@ -352,7 +353,7 @@ func DefaultConfig() Config {
 			// TODO: Branding
 			StorageDir: platformDefaultValue(map[platformName]string{
 				linux:   filepath.Join(unixDataPathPrefix, "packages"),
-				darwin:  filepath.Join(unixDataPathPrefix, "packages"),
+				darwin:  filepath.Join(darwinDataPathPrefix, "packages"),
 				windows: filepath.Join(WindowsDataPathPrefix, "packages"),
 			}),
 			KeepVersions: 2,
@@ -367,7 +368,7 @@ func DefaultConfig() Config {
 			// TODO: Branding
 			Dir: platformDefaultValue(map[platformName]string{
 				linux:   filepath.Join(unixDataPathPrefix, "supervisor"),
-				darwin:  filepath.Join(unixDataPathPrefix, "supervisor"),
+				darwin:  filepath.Join(darwinDataPathPrefix, "supervisor"),
 				windows: filepath.Join(WindowsDataPathPrefix, "supervisor"),
 			}),
 		},
@@ -391,7 +392,7 @@ func DefaultConfig() Config {
 			Color:  false,
 			File: platformDefaultValue(map[platformName]string{
 				linux:   filepath.Join(unixDataPathPrefix, "logs", "supervisor.log"),
-				darwin:  filepath.Join(unixDataPathPrefix, "logs", "supervisor.log"),
+				darwin:  filepath.Join(darwinDataPathPrefix, "logs", "supervisor.log"),
 				windows: filepath.Join(WindowsDataPathPrefix, "logs", "supervisor.log"),
 			}),
 			FileRotation: LogRotationConfig{

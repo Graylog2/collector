@@ -32,12 +32,7 @@ import (
 )
 
 func TestSupervisor_NonIdentifyingAttributes_WithCollectorVersion(t *testing.T) {
-	s := &Supervisor{
-		collectorVersion: "2.0.0-alpha.0",
-		logger:           zap.NewNop(),
-	}
-
-	attrs := s.nonIdentifyingAttributes("test-host")
+	attrs := nonIdentifyingAttributes(zap.NewNop(), "test-host", "2.0.0-alpha.0")
 
 	attrMap := make(map[string]string)
 	for _, kv := range attrs {
@@ -52,9 +47,7 @@ func TestSupervisor_NonIdentifyingAttributes_WithCollectorVersion(t *testing.T) 
 }
 
 func TestSupervisor_NonIdentifyingAttributes_WithoutCollectorVersion(t *testing.T) {
-	s := &Supervisor{logger: zap.NewNop()}
-
-	attrs := s.nonIdentifyingAttributes("test-host")
+	attrs := nonIdentifyingAttributes(zap.NewNop(), "test-host", "")
 
 	attrMap := make(map[string]string)
 	for _, kv := range attrs {

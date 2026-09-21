@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>Graylog Collector</title>
+    <!-- Daemon + LaunchDaemon must land on the boot volume. -->
+    <domains enable_localSystem="true"/>
+    <options customize="never" require-scripts="true" hostArchitectures="x86_64,arm64"/>
+    <allowed-os-versions>
+        <!-- Go 1.27 requires >= 13 - see https://go.dev/wiki/MinimumRequirements  -->
+        <os-version min="13.0"/>
+    </allowed-os-versions>
+    <choices-outline>
+        <line choice="default">
+            <line choice="org.graylog.collector"/>
+        </line>
+    </choices-outline>
+    <choice id="default"/>
+    <choice id="org.graylog.collector" visible="false">
+        <pkg-ref id="org.graylog.collector"/>
+    </choice>
+    <pkg-ref id="org.graylog.collector" onConclusion="none">
+        graylog-collector-component.pkg
+    </pkg-ref>
+    <license file="LICENSE.txt"/>
+    <background file="background.png" mime-type="image/png"
+        alignment="bottomleft" scaling="none"/>
+    <background-darkAqua file="background.png" mime-type="image/png"
+        alignment="bottomleft" scaling="none"/>
+</installer-gui-script>

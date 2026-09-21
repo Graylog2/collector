@@ -34,6 +34,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Graylog2/collector/superv/auth"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 	"github.com/open-telemetry/opamp-go/protobufs"
@@ -127,13 +128,20 @@ func New() (*Server, error) {
 	return s, nil
 }
 
-// Start starts the test server and returns its URL.
-func (s *Server) Start() string {
+// Handler returns an http.Handler with all server endpoints registered. It is
+// the single source of routes for both Start() and external consumers
+// (cmd/testserver), so the two cannot drift apart.
+func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/jwks.json", s.HandleJWKS)
 	mux.HandleFunc("/v1/opamp", s.HandleOpAMP)
+	mux.HandleFunc(auth.EnrollmentAuthCheckPath, s.HandleEnrollAuthCheck)
+	return mux
+}
 
-	s.httpServer = httptest.NewTLSServer(mux)
+// Start starts the test server and returns its URL.
+func (s *Server) Start() string {
+	s.httpServer = httptest.NewTLSServer(s.Handler())
 	return s.httpServer.URL
 }
 
@@ -228,6 +236,20 @@ func (s *Server) HandleJWKS(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(jwks)
+}
+
+// HandleEnrollAuthCheck serves the enrollment token check endpoint: 200 for a
+// valid enrollment token, 401 otherwise. Like HandleOpAMP, it accepts anything
+// when RequireAuth is disabled.
+func (s *Server) HandleEnrollAuthCheck(w http.ResponseWriter, r *http.Request) {
+	if s.RequireAuth {
+		result := s.checkAuth(r)
+		if !result.Authenticated || !result.IsEnrollment {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 // AuthResult contains the result of authentication verification.

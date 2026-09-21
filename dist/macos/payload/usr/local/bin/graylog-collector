@@ -1,0 +1,3 @@
+#!/bin/sh
+
+exec "/Library/Application Support/Graylog/Graylog Collector.app/Contents/MacOS/graylog-collector" "$@"

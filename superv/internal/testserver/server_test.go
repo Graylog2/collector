@@ -18,6 +18,8 @@
 package testserver
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -61,4 +63,69 @@ func TestServer_EnrollmentJWT(t *testing.T) {
 	claims, err := auth.ValidateEnrollmentJWT(jwt, keys)
 	require.NoError(t, err)
 	require.Equal(t, "test", claims.Issuer)
+}
+
+// TestServer_HandlerServesAllRoutes guards against route drift between
+// Start() and consumers that mount the handler themselves (cmd/testserver):
+// every server endpoint must be reachable through Handler().
+func TestServer_HandlerServesAllRoutes(t *testing.T) {
+	server, err := New()
+	require.NoError(t, err)
+
+	httpServer := httptest.NewServer(server.Handler())
+	defer httpServer.Close()
+
+	for _, path := range []string{"/.well-known/jwks.json", "/v1/opamp", auth.EnrollmentAuthCheckPath} {
+		resp, err := http.Get(httpServer.URL + path)
+		require.NoError(t, err, path)
+		require.NoError(t, resp.Body.Close())
+		require.NotEqual(t, http.StatusNotFound, resp.StatusCode, path)
+	}
+}
+
+func TestServer_EnrollAuthCheck(t *testing.T) {
+	server, err := New()
+	require.NoError(t, err)
+
+	url := server.Start()
+	defer server.Stop()
+
+	jwt, err := server.CreateEnrollmentJWT("test", time.Hour)
+	require.NoError(t, err)
+
+	get := func(authHeader string) int {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url+auth.EnrollmentAuthCheckPath, nil)
+		require.NoError(t, err)
+		if authHeader != "" {
+			req.Header.Set("Authorization", authHeader)
+		}
+		resp, err := server.Client().Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	require.Equal(t, http.StatusOK, get(auth.BearerToken(jwt)))
+	require.Equal(t, http.StatusUnauthorized, get("Bearer not-a-valid-token"))
+	require.Equal(t, http.StatusUnauthorized, get(""))
+}
+
+// Like HandleOpAMP, the auth check must accept anything when RequireAuth is
+// disabled, so tests that enroll with dummy tokens keep working.
+func TestServer_EnrollAuthCheck_RequireAuthDisabled(t *testing.T) {
+	server, err := New()
+	require.NoError(t, err)
+	server.RequireAuth = false
+
+	url := server.Start()
+	defer server.Stop()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url+auth.EnrollmentAuthCheckPath, nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", auth.BearerToken("dummy-token"))
+
+	resp, err := server.Client().Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
