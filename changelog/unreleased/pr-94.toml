@@ -1,0 +1,4 @@
+type = "fixed"
+message = "Fix dropped macOS Unified Logging records carrying unsigned 64-bit identifiers."
+
+pulls = ["94"]
