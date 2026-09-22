@@ -23,8 +23,8 @@ func predicateHash(predicate string) string {
 }
 
 type identity struct {
-	Mach   int64 `json:"m"`
-	Thread int64 `json:"t"`
+	Mach   uint64 `json:"m"`
+	Thread uint64 `json:"t"`
 }
 
 // cursor tracks forward progress through the unified log. wallSecond is the floored

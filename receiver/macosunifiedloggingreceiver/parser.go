@@ -6,6 +6,8 @@ package macosunifiedloggingreceiver
 import (
 	"bytes"
 	"encoding/json"
+	"math"
+	"strconv"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -21,35 +23,36 @@ const timestampLayout = "2006-01-02 15:04:05.000000-0700"
 // For strings that falls out of the zero value: "" carries no information, so putStr's empty
 // check covers both absent and empty. Integers need explicit presence, because 0 is a real
 // value — uid 0 is root, pid 0 is the kernel — and encoding/json cannot distinguish a missing
-// number from a zero one. Every optional integer is therefore a *int64 emitted via putInt.
-// Keep it that way when adding fields: a plain int64 silently reports 0 for every record the
-// source did not populate.
+// number from a zero one. Every optional integer is therefore a pointer. Signed values are
+// emitted via putInt; unsigned identifiers are emitted via putUint. Keep fields as pointers
+// when adding them: a plain integer silently reports 0 for every record the source did not
+// populate.
 //
 // MachTimestamp and ThreadID are the exception because they are not optional, not because the
 // rule bends: parseLogEvent rejects any record without a machTimestamp, and both make up the
 // cursor's dedup key, so a nil there would be a bug rather than a legitimate absence.
 type logEvent struct {
-	Timestamp                string `json:"timestamp"`
-	MachTimestamp            int64  `json:"machTimestamp"`
-	ThreadID                 int64  `json:"threadID"`
-	BootUUID                 string `json:"bootUUID"`
-	EventMessage             string `json:"eventMessage"`
-	MessageType              string `json:"messageType"`
-	EventType                string `json:"eventType"`
-	Subsystem                string `json:"subsystem"`
-	Category                 string `json:"category"`
-	ProcessID                *int64 `json:"processID"`
-	UserID                   *int64 `json:"userID"`
-	ProcessImagePath         string `json:"processImagePath"`
-	ProcessImageUUID         string `json:"processImageUUID"`
-	SenderImagePath          string `json:"senderImagePath"`
-	SenderImageUUID          string `json:"senderImageUUID"`
-	SenderProgramCounter     *int64 `json:"senderProgramCounter"`
-	ActivityIdentifier       *int64 `json:"activityIdentifier"`
-	ParentActivityIdentifier *int64 `json:"parentActivityIdentifier"`
-	CreatorActivityID        *int64 `json:"creatorActivityID"`
-	TraceID                  *int64 `json:"traceID"`
-	FormatString             string `json:"formatString"`
+	Timestamp                string  `json:"timestamp"`
+	MachTimestamp            uint64  `json:"machTimestamp"`
+	ThreadID                 uint64  `json:"threadID"`
+	BootUUID                 string  `json:"bootUUID"`
+	EventMessage             string  `json:"eventMessage"`
+	MessageType              string  `json:"messageType"`
+	EventType                string  `json:"eventType"`
+	Subsystem                string  `json:"subsystem"`
+	Category                 string  `json:"category"`
+	ProcessID                *int64  `json:"processID"`
+	UserID                   *int64  `json:"userID"`
+	ProcessImagePath         string  `json:"processImagePath"`
+	ProcessImageUUID         string  `json:"processImageUUID"`
+	SenderImagePath          string  `json:"senderImagePath"`
+	SenderImageUUID          string  `json:"senderImageUUID"`
+	SenderProgramCounter     *uint64 `json:"senderProgramCounter"`
+	ActivityIdentifier       *uint64 `json:"activityIdentifier"`
+	ParentActivityIdentifier *uint64 `json:"parentActivityIdentifier"`
+	CreatorActivityID        *uint64 `json:"creatorActivityID"`
+	TraceID                  *uint64 `json:"traceID"`
+	FormatString             string  `json:"formatString"`
 
 	parsedTime       time.Time // offset-aware timestamp (from Timestamp)
 	utcSecondClamped string    // seconds-resolution floor of Timestamp for use with log show --start
@@ -113,16 +116,16 @@ func (e *logEvent) setLogRecord(lr plog.LogRecord, now time.Time) {
 	putStr(a, "macos.formatString", e.FormatString)
 	putStr(a, "macos.bootUUID", e.BootUUID)
 	// Always emitted: required, and the cursor's dedup key.
-	a.PutInt("macos.threadID", e.ThreadID)
-	a.PutInt("macos.machTimestamp", e.MachTimestamp)
+	putUintValue(a, "macos.threadID", e.ThreadID)
+	putUintValue(a, "macos.machTimestamp", e.MachTimestamp)
 	// Optional: emitted only when the source supplied them.
 	putInt(a, "macos.processID", e.ProcessID)
 	putInt(a, "macos.userID", e.UserID)
-	putInt(a, "macos.activityIdentifier", e.ActivityIdentifier)
-	putInt(a, "macos.parentActivityIdentifier", e.ParentActivityIdentifier)
-	putInt(a, "macos.creatorActivityID", e.CreatorActivityID)
-	putInt(a, "macos.traceID", e.TraceID)
-	putInt(a, "macos.senderProgramCounter", e.SenderProgramCounter)
+	putUint(a, "macos.activityIdentifier", e.ActivityIdentifier)
+	putUint(a, "macos.parentActivityIdentifier", e.ParentActivityIdentifier)
+	putUint(a, "macos.creatorActivityID", e.CreatorActivityID)
+	putUint(a, "macos.traceID", e.TraceID)
+	putUint(a, "macos.senderProgramCounter", e.SenderProgramCounter)
 }
 
 func putStr(a pcommon.Map, key, val string) {
@@ -137,4 +140,21 @@ func putInt(a pcommon.Map, key string, val *int64) {
 	if val != nil {
 		a.PutInt(key, *val)
 	}
+}
+
+func putUint(a pcommon.Map, key string, val *uint64) {
+	if val != nil {
+		putUintValue(a, key, *val)
+	}
+}
+
+// putUintValue follows the OpenTelemetry mapping for unsigned source integers: values that fit
+// in an OTLP signed 64-bit integer remain integers, while larger values use their lossless
+// decimal string representation.
+func putUintValue(a pcommon.Map, key string, val uint64) {
+	if val <= math.MaxInt64 {
+		a.PutInt(key, int64(val))
+		return
+	}
+	a.PutStr(key, strconv.FormatUint(val, 10))
 }

@@ -158,6 +158,39 @@ func TestSetLogRecord_ExplicitZeroIntegersArePreserved(t *testing.T) {
 	}
 }
 
+func TestSetLogRecord_UnsignedValuesArePreserved(t *testing.T) {
+	const value = "9223372036856917482"
+	line := `{"machTimestamp":` + value + `,"threadID":` + value + `,` +
+		`"timestamp":"2026-06-29 13:54:42.000000+0000","senderProgramCounter":` + value + `,` +
+		`"activityIdentifier":` + value + `,"parentActivityIdentifier":` + value + `,` +
+		`"creatorActivityID":` + value + `,"traceID":` + value + `}`
+	e, err := parseLogEvent([]byte(line))
+	if err != nil || e == nil {
+		t.Fatalf("parseLogEvent = (%v, %v)", e, err)
+	}
+	lr := plog.NewLogs().ResourceLogs().AppendEmpty().ScopeLogs().AppendEmpty().LogRecords().AppendEmpty()
+	e.setLogRecord(lr, time.Unix(0, 0))
+
+	for _, key := range []string{
+		"macos.machTimestamp",
+		"macos.threadID",
+		"macos.senderProgramCounter",
+		"macos.activityIdentifier",
+		"macos.parentActivityIdentifier",
+		"macos.creatorActivityID",
+		"macos.traceID",
+	} {
+		v, ok := lr.Attributes().Get(key)
+		if !ok {
+			t.Errorf("%s is absent, want string %q", key, value)
+			continue
+		}
+		if v.Str() != value {
+			t.Errorf("%s = %v, want string %q", key, v.AsRaw(), value)
+		}
+	}
+}
+
 func TestWallSecond_TimezoneStable(t *testing.T) {
 	// 2026-06-29 15:54:42+0200 and 2026-06-29 13:54:42+0000 are the same instant.
 	plus2 := `{"machTimestamp":1,"threadID":2,"timestamp":"2026-06-29 15:54:42.500000+0200"}`
