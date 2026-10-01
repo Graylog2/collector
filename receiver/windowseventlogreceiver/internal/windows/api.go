@@ -13,28 +13,33 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// The procedures below must stay *windows.LazyProc and be called directly: LazyProc.Call carries
+// //go:uintptrescapes, which keeps every uintptr(unsafe.Pointer(p)) argument alive for the duration of
+// the call. Routing the call through an interface or a function variable loses that guarantee, and the
+// garbage collector may then free an argument while the Windows API is still using it.
 var (
 	api = windows.NewLazySystemDLL("wevtapi.dll")
 
-	subscribeProc                SyscallProc = api.NewProc("EvtSubscribe")
-	nextProc                     SyscallProc = api.NewProc("EvtNext")
-	renderProc                   SyscallProc = api.NewProc("EvtRender")
-	closeProc                    SyscallProc = api.NewProc("EvtClose")
-	createBookmarkProc           SyscallProc = api.NewProc("EvtCreateBookmark")
-	createRenderContextProc      SyscallProc = api.NewProc("EvtCreateRenderContext")
-	updateBookmarkProc           SyscallProc = api.NewProc("EvtUpdateBookmark")
-	openPublisherMetadataProc    SyscallProc = api.NewProc("EvtOpenPublisherMetadata")
-	formatMessageProc            SyscallProc = api.NewProc("EvtFormatMessage")
-	openEventMetadataEnumProc    SyscallProc = api.NewProc("EvtOpenEventMetadataEnum")
-	nextEventMetadataProc        SyscallProc = api.NewProc("EvtNextEventMetadata")
-	getEventMetadataPropertyProc SyscallProc = api.NewProc("EvtGetEventMetadataProperty")
-	openChannelEnumProc          SyscallProc = api.NewProc("EvtOpenChannelEnum")
-	nextChannelPathProc          SyscallProc = api.NewProc("EvtNextChannelPath")
+	subscribeProc                = api.NewProc("EvtSubscribe")
+	nextProc                     = api.NewProc("EvtNext")
+	renderProc                   = api.NewProc("EvtRender")
+	closeProc                    = api.NewProc("EvtClose")
+	createBookmarkProc           = api.NewProc("EvtCreateBookmark")
+	createRenderContextProc      = api.NewProc("EvtCreateRenderContext")
+	updateBookmarkProc           = api.NewProc("EvtUpdateBookmark")
+	openPublisherMetadataProc    = api.NewProc("EvtOpenPublisherMetadata")
+	formatMessageProc            = api.NewProc("EvtFormatMessage")
+	openEventMetadataEnumProc    = api.NewProc("EvtOpenEventMetadataEnum")
+	nextEventMetadataProc        = api.NewProc("EvtNextEventMetadata")
+	getEventMetadataPropertyProc = api.NewProc("EvtGetEventMetadataProperty")
+	openChannelEnumProc          = api.NewProc("EvtOpenChannelEnum")
+	nextChannelPathProc          = api.NewProc("EvtNextChannelPath")
 )
 
-// SyscallProc is a syscall procedure.
-type SyscallProc interface {
-	Call(...uintptr) (uintptr, uintptr, error)
+var _ = []*windows.LazyProc{
+	subscribeProc, nextProc, renderProc, closeProc, createBookmarkProc, createRenderContextProc,
+	updateBookmarkProc, openPublisherMetadataProc, formatMessageProc, openEventMetadataEnumProc,
+	nextEventMetadataProc, getEventMetadataPropertyProc, openChannelEnumProc, nextChannelPathProc,
 }
 
 const (
