@@ -214,7 +214,7 @@ func (s *Supervisor) reportEffectiveConfig(ctx context.Context, effectiveConfig 
 	s.mu.RUnlock()
 
 	if client != nil {
-		if err := client.SetEffectiveConfig(ctx, map[string]*protobufs.AgentConfigFile{
+		if err := client.SetEffectiveConfig(ctx, map[string]*protobufs.AgentConfigObject{
 			"collector.yaml": {Body: effectiveConfig},
 		}); err != nil {
 			s.logger.Warn("Failed to report effective config", zap.Error(err))

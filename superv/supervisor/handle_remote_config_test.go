@@ -85,7 +85,7 @@ func TestCreateOpAMPCallbacks_OnRemoteConfig_DoesNotRollbackOnShutdownCancellati
 	go func() {
 		done <- s.handleRemoteConfig(callbackCtx, &protobufs.AgentRemoteConfig{
 			Config: &protobufs.AgentConfigMap{
-				ConfigMap: map[string]*protobufs.AgentConfigFile{
+				ConfigMap: map[string]*protobufs.AgentConfigObject{
 					"collector.yaml": {
 						Body: []byte(`receivers:
   otlp:

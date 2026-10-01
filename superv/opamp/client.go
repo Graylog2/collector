@@ -327,7 +327,7 @@ func (c *Client) SetAvailableComponents(components *protobufs.AvailableComponent
 
 // SetEffectiveConfig updates the effective configuration reported to the server.
 // Can be called before Start() to set the initial effective config.
-func (c *Client) SetEffectiveConfig(ctx context.Context, config map[string]*protobufs.AgentConfigFile) error {
+func (c *Client) SetEffectiveConfig(ctx context.Context, config map[string]*protobufs.AgentConfigObject) error {
 	c.effectiveConfig.Store(&protobufs.EffectiveConfig{
 		ConfigMap: &protobufs.AgentConfigMap{
 			ConfigMap: config,

@@ -34,7 +34,7 @@ import (
 func createTestRemoteConfig(configName string, configBody []byte, hash []byte) *protobufs.AgentRemoteConfig {
 	return &protobufs.AgentRemoteConfig{
 		Config: &protobufs.AgentConfigMap{
-			ConfigMap: map[string]*protobufs.AgentConfigFile{
+			ConfigMap: map[string]*protobufs.AgentConfigObject{
 				configName: {
 					Body:        configBody,
 					ContentType: "text/yaml",
@@ -336,7 +336,7 @@ func TestConfigManager_ApplyRemoteConfig_EmptyConfigMap(t *testing.T) {
 	// Apply config with empty ConfigMap
 	remote := &protobufs.AgentRemoteConfig{
 		Config: &protobufs.AgentConfigMap{
-			ConfigMap: map[string]*protobufs.AgentConfigFile{},
+			ConfigMap: map[string]*protobufs.AgentConfigObject{},
 		},
 		ConfigHash: []byte("hash-empty"),
 	}
