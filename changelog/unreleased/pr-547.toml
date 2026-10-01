@@ -1,5 +1,0 @@
-type = "f"
-message = "Fix/credential reset on 401"
-
-issues = ["543"]
-pulls = ["547"]
