@@ -1,0 +1,5 @@
+type = "f"
+message = "Add an opt-in credential reset that re-enrolls a Collector after the server rejects it with HTTP 401."
+
+issues = ["14"]
+pulls = ["17"]
