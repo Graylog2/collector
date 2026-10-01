@@ -241,7 +241,7 @@ func TestClient_SetEffectiveConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Before start, should store for later
-	config := map[string]*protobufs.AgentConfigFile{
+	config := map[string]*protobufs.AgentConfigObject{
 		"collector.yaml": {
 			Body: []byte("test: config"),
 		},
@@ -270,7 +270,7 @@ func TestClient_SetEffectiveConfig_RespectsContext(t *testing.T) {
 	}, &Callbacks{})
 	require.NoError(t, err)
 
-	config := map[string]*protobufs.AgentConfigFile{
+	config := map[string]*protobufs.AgentConfigObject{
 		"test.yaml": {Body: []byte("test: config")},
 	}
 

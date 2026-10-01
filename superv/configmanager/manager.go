@@ -145,7 +145,7 @@ func (m *Manager) ApplyRemoteConfig(remote *protobufs.AgentRemoteConfig) (*Apply
 }
 
 // storeRemoteConfigs stores all remote configs to ConfigDir/remote/ for debugging.
-func (m *Manager) storeRemoteConfigs(configMap map[string]*protobufs.AgentConfigFile) error {
+func (m *Manager) storeRemoteConfigs(configMap map[string]*protobufs.AgentConfigObject) error {
 	if m.cfg.ConfigDir == "" {
 		return nil
 	}
