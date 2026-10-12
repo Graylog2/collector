@@ -12,11 +12,11 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/knadh/koanf/maps v0.1.3
 	github.com/knadh/koanf/parsers/yaml v1.1.1
-	github.com/knadh/koanf/providers/env/v2 v2.0.1
+	github.com/knadh/koanf/providers/env/v2 v2.0.2
 	github.com/knadh/koanf/providers/file v1.2.1
 	github.com/knadh/koanf/providers/rawbytes v1.0.1
 	github.com/knadh/koanf/providers/structs v1.0.1
-	github.com/knadh/koanf/v2 v2.3.6
+	github.com/knadh/koanf/v2 v2.3.7
 	github.com/open-telemetry/opamp-go v0.23.0
 	github.com/shirou/gopsutil/v4 v4.26.8
 	github.com/spf13/cobra v1.10.2
