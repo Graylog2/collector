@@ -36,7 +36,9 @@ builder/builder.exe
 /graylog-collector*
 /data
 resource_windows.syso
-.claude/
+/.claude/*
+!/.claude/skills/
+!/.claude/skills/**
 
 # Temp files for go task
 /.task/
